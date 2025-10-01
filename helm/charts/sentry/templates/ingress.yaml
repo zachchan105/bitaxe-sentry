@@ -1,0 +1,46 @@
+{{ if .Values.ingress.http.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "sentry.name" . }}-http
+  annotations:
+    {{- .Values.ingress.http.annotations | nindent 4 }}
+spec:
+  rules:
+    - host: {{ .Values.ingress.url }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "sentry.name" . }}
+                port:
+                  name: http
+{{- end }}
+{{ if .Values.ingress.https.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "sentry.name" . }}-https
+  annotations:
+    {{- .Values.ingress.https.annotations | nindent 4 }}
+spec:
+  tls:
+    - hosts:
+        - {{ .Values.ingress.url }}
+      secretName: {{ include "sentry.name" . }}-https
+  rules:
+    - host: {{ .Values.ingress.url }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "sentry.name" . }}
+                port:
+                  name: http
+{{- end }}

@@ -1,6 +1,6 @@
-import os
-import pathlib
 import logging
+import os
+
 from .settings_manager import load_settings
 
 logger = logging.getLogger(__name__)
@@ -37,8 +37,6 @@ else:
     logger.info("Discord webhook not configured")
 
 # Track when config was last modified
-import os.path
-import time
 
 def get_config_mtime():
     """Get the modification time of the config file"""
@@ -89,7 +87,7 @@ def reload_config():
     # Update the last modified time
     last_modified_time = current_mtime
     
-    logger.info(f"Updated configuration:")
+    logger.info("Updated configuration:")
     logger.info(f"- Poll interval: {POLL_INTERVAL} minutes")
     logger.info(f"- Retention days: {RETENTION_DAYS}")
     logger.info(f"- Temperature range: {TEMP_MIN}°C - {TEMP_MAX}°C")

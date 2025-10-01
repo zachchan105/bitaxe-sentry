@@ -1,8 +1,10 @@
-import requests
-import logging
-from .config import DISCORD_WEBHOOK, reload_config
-import socket
 import datetime
+import logging
+import socket
+
+import requests
+
+from .config import DISCORD_WEBHOOK, reload_config
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +17,6 @@ def send_startup_notification(service="main"):
     """
     # Reload config to ensure we have the latest webhook URL
     reload_config()
-    from .config import DISCORD_WEBHOOK
     
     if not DISCORD_WEBHOOK:
         logger.warning("Discord webhook URL not configured, skipping startup notification")
@@ -61,7 +62,6 @@ def send_alert(miner, reading, alert_type="temperature"):
     """
     # Reload config to ensure we have the latest webhook URL
     reload_config()
-    from .config import DISCORD_WEBHOOK
     
     if not DISCORD_WEBHOOK:
         logger.warning(f"Discord webhook URL not configured, skipping {alert_type} alert for {miner.name}")
@@ -130,7 +130,6 @@ def send_diff_alert(miner, reading):
     """
     # Reload config to ensure we have the latest webhook URL
     reload_config()
-    from .config import DISCORD_WEBHOOK
     
     if not DISCORD_WEBHOOK:
         logger.warning(f"Discord webhook URL not configured, skipping diff alert for {miner.name}")
@@ -188,7 +187,7 @@ def send_test_notification(webhook_url):
             timeout=10
         )
         response.raise_for_status()
-        logger.info(f"Test notification sent successfully to webhook")
+        logger.info("Test notification sent successfully to webhook")
         return True
     except Exception as e:
         logger.error(f"Failed to send test notification: {e}")
@@ -206,7 +205,6 @@ def send_miner_offline_alert(miner):
     """
     # Reload config to ensure we have the latest webhook URL
     reload_config()
-    from .config import DISCORD_WEBHOOK
     
     if not DISCORD_WEBHOOK:
         logger.warning(f"Discord webhook URL not configured, skipping offline alert for {miner.name}")
@@ -218,7 +216,8 @@ def send_miner_offline_alert(miner):
     last_reading_time = "Unknown"
     try:
         from sqlmodel import select
-        from .db import get_session, Reading
+
+        from .db import Reading, get_session
         
         with get_session() as session:
             last_reading = session.exec(

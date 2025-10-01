@@ -1,0 +1,6 @@
+apiVersion: v2
+name: sentry
+description: A Helm Chart for Bitaxe Sentry
+type: application
+version: 1.0.18
+appVersion: v0.4.0

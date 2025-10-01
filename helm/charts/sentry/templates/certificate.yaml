@@ -1,0 +1,14 @@
+---
+{{- if .Capabilities.APIVersions.Has "cert-manager.io/v1/Certificate" }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "sentry.name" . }}
+spec:
+  secretName: {{ include "sentry.name" .}}-https
+  issuerRef:
+    name: letsencrypt
+    kind: ClusterIssuer
+  dnsNames:
+    - {{ .Values.ingress.url }}
+{{- end -}}

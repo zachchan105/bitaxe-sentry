@@ -111,10 +111,30 @@
                         </div>
                     </div>
                 </div>
+                
+                <div class="row">
+                    <div class="col-6">
+                        <div class="mb-3">
+                            <h6 class="text-muted mb-1">Accepted Shares</h6>
+                            <h4 class="card-text">{{ item.reading.sharesAccepted }}</h4>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mb-3">
+                            <h6 class="text-muted mb-1">Rejected Shares</h6>
+                            <h4 class="card-text">{{ item.reading.sharesRejected }}</h4>
+                        </div>
+                    </div>
+                </div>
             </div>
+
             <div class="card-footer text-muted small">
                 <a href="/history?miner_id={{ item.miner.id }}" class="text-decoration-none">View history</a>
                 <span class="float-end">IP: <a href="{{ item.miner.endpoint }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none">{{ item.miner.endpoint }}</a></span>
+            </div>
+
+            <div class="card-footer text-muted small">
+                <span class="float-end">Current Pool: {{ item.reading.currentStratumUrl or 'N/A' }}</span>
             </div>
         </div>
     </div>

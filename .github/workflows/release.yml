@@ -7,6 +7,7 @@ on:
 
 jobs:
   build:
+    if: github.actor != 'github-actions'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -19,7 +20,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Get version from version.py
         id: get_version
@@ -53,10 +54,10 @@ jobs:
           name: Release v${{ steps.get_version.outputs.APP_VERSION }}
           body: |
             ## Bitaxe Sentry Release v${{ steps.get_version.outputs.APP_VERSION }}
-            
+
             ### Recent Changes
             ${{ steps.changelog.outputs.CHANGELOG }}
-            
+
             ### Update Instructions
             1. Stop the current containers:
                ```
@@ -73,6 +74,37 @@ jobs:
           draft: false
           prerelease: false
 
+      - name: Get Sentry version
+        id: get_sentry_version
+        run: |
+          VERSION=$(python -c "from bitaxe_sentry.sentry.version import __version__; print(__version__)")
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Increment chart version
+        run: |
+          # Get current chart version
+          CURRENT_VERSION=$(yq e '.version' ./helm/charts/sentry/Chart.yaml)
+          echo "Current chart version: $CURRENT_VERSION"
+
+          # Split into major.minor.patch
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+          # Increment patch
+          PATCH=$((PATCH + 1))
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "New chart version: $NEW_VERSION"
+
+          # Update Chart.yaml
+          yq e -i ".version = \"$NEW_VERSION\"" ./helm/charts/sentry/Chart.yaml
+
+          # Update values.yaml
+          yq e -i ".image.tag = \"v${{ steps.get_sentry_version.outputs.VERSION }}\"" ./helm/charts/sentry/values.yaml
+
+          # Commit and push
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add ./helm/charts/sentry
+          git commit -m "Bump chart version to $NEW_VERSION, set image.tag to v${{ steps.get_sentry_version.outputs.VERSION }}"
+          git push
   docker:
     needs: build
     runs-on: ubuntu-latest
@@ -102,5 +134,5 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            zachprice105/bitaxe-sentry:latest
-            zachprice105/bitaxe-sentry:v${{ steps.get_version.outputs.VERSION }} 
+            ahmedbodi/bitaxe-sentry:latest
+            ahmedbodi/bitaxe-sentry:v${{ steps.get_version.outputs.VERSION }}

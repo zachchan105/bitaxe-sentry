@@ -1,0 +1,62 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "sentry.name" . }}
+  labels:
+    {{- include "sentry.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "sentry.name" . }}-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "sentry.selectorLabels" . | nindent 8 }}
+  template:
+    metadata:
+      labels:
+        {{- include "sentry.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: sentry
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            {{- range $key, $val := .Values.env }}
+            - name: {{ $key }}
+              value: "{{ $val }}"
+            {{- end }}
+          volumeMounts:
+            - name: bitaxe-data
+              mountPath: /var/lib/bitaxe
+          resources:
+            {{- toYaml .Values.resources.sentry | nindent 12 }}
+
+        - name: web
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["uvicorn", "bitaxe_sentry.sentry.webapp:app", "--host", "0.0.0.0", "--port", "8000"]
+          env:
+            {{- range $key, $val := .Values.env }}
+            - name: {{ $key }}
+              value: "{{ $val }}"
+            {{- end }}
+          ports:
+            - containerPort: 8000
+              name: http
+              protocol: TCP
+          volumeMounts:
+            - name: bitaxe-data
+              mountPath: /var/lib/bitaxe
+          resources:
+            {{- toYaml .Values.resources.web | nindent 12 }}
+  volumeClaimTemplates:
+    - metadata:
+        name: bitaxe-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}
+        {{- if .Values.persistence.storageClass }}
+        storageClassName: {{ .Values.persistence.storageClass }}
+        {{- end }}

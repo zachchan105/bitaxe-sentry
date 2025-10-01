@@ -1,9 +1,7 @@
-import os
-import pathlib
-from pathlib import Path
-import logging
 import json
-import time
+import logging
+import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +22,27 @@ DEFAULT_SETTINGS = {
 
 def ensure_data_dir():
     """Ensure the data directory exists"""
+    if os.getenv('KUBERNETES_SERVICE_HOST'):
+        # In Kubernetes, the volume should already exist
+        logger.info(f"Running in Kubernetes, assuming data directory {DATA_DIR} exists")
+        return
     DATA_DIR.mkdir(exist_ok=True)
 
 def load_settings():
     """Load settings from JSON file in data directory"""
+    if os.getenv('KUBERNETES_SERVICE_HOST'):
+        logger.info("Running in Kubernetes, skipping loading settings from file")
+        config = DEFAULT_SETTINGS.copy()
+        config['POLL_INTERVAL_MINUTES'] = int(os.getenv('POLL_INTERVAL_MINUTES', config['POLL_INTERVAL_MINUTES']))
+        config['RETENTION_DAYS'] = int(os.getenv('RETENTION_DAYS', config['RETENTION_DAYS']))
+        config['TEMP_MIN'] = float(os.getenv('TEMP_MIN', config['TEMP_MIN']))
+        config['TEMP_MAX'] = float(os.getenv('TEMP_MAX', config['TEMP_MAX']))
+        config['VOLT_MIN'] = float(os.getenv('VOLT_MIN', config['VOLT_MIN']))
+        endpoints = os.getenv('BITAXE_ENDPOINTS', '')
+        if endpoints:
+            config['BITAXE_ENDPOINTS'] = [ep.strip() for ep in endpoints.split(',') if ep.strip()]
+        config['DISCORD_WEBHOOK_URL'] = os.getenv('DISCORD_WEBHOOK_URL', config['DISCORD_WEBHOOK_URL'])
+        return config
     ensure_data_dir()
     
     # If the file doesn't exist yet, create it with default settings
@@ -74,6 +89,9 @@ def load_settings():
 
 def save_settings(settings_dict):
     """Save settings to JSON file in data directory"""
+    if os.getenv('KUBERNETES_SERVICE_HOST'):
+        logger.warning("Running in Kubernetes, skipping saving settings to file")
+        return False  
     ensure_data_dir()
     
     # Convert string endpoints to list if needed
