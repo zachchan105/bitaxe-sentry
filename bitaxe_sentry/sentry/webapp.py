@@ -28,10 +28,26 @@ app = FastAPI(title="Bitaxe Sentry")
 templates_path = pathlib.Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(templates_path))
 
+# Helper function to format large numbers
+def format_large_number(value):
+    """Format large numbers in human-readable format (K, M, G, T)"""
+    try:
+        num = float(value)
+        magnitude = abs(num)
+        
+        for unit, threshold in [('T', 1_000_000_000_000), ('G', 1_000_000_000), ('M', 1_000_000), ('K', 1_000)]:
+            if magnitude >= threshold:
+                return f"{num / threshold:.2f}{unit}"
+        
+        return f"{num:.2f}"
+    except (ValueError, TypeError):
+        return value
+
 # Helper function to add version to template context
 def get_template_context(request: Request, context: Dict[str, Any]) -> Dict[str, Any]:
     context["request"] = request
     context["version"] = __version__
+    context["format_large_number"] = format_large_number
     return context
 
 # Set up static files directory
@@ -153,7 +169,7 @@ def history(
                 "full_timestamp": reading.timestamp.isoformat(),
                 "hash_rate": reading.hash_rate,
                 "temperature": reading.temperature,
-                "best_diff": reading.best_diff,
+                "best_diff": format_large_number(reading.best_diff),
                 "voltage": voltage
             })
     

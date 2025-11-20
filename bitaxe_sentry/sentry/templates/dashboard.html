@@ -86,7 +86,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="row">
                     <div class="col-6">
                         <div class="mb-3">
@@ -107,7 +107,7 @@
                     <div class="col-6">
                         <div class="mb-3">
                             <h6 class="text-muted mb-1">Best Difficulty</h6>
-                            <h5 class="card-text">{{ item.reading.best_diff }}</h5>
+                            <h5 class="card-text">{{ format_large_number(item.reading.best_diff) }}</h5>
                         </div>
                     </div>
                 </div>
@@ -170,7 +170,7 @@
         // Delete miner
         const deleteModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
         let minerIdToDelete;
-        
+
         document.querySelectorAll('.delete-miner').forEach(btn => {
             btn.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -180,22 +180,22 @@
                 deleteModal.show();
             });
         });
-        
+
         document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
             if (minerIdToDelete) {
                 fetch(`/api/miners/${minerIdToDelete}`, { method: 'DELETE' })
-                .then(response => {
-                    if (response.ok) {
-                        window.location.reload();
-                    } else {
-                        alert('Failed to delete miner. Please try again.');
-                    }
-                }).catch(error => {
-                    console.error('Error deleting miner:', error);
-                    alert('An error occurred while deleting the miner.');
-                }).finally(() => {
-                    deleteModal.hide();
-                });
+                    .then(response => {
+                        if (response.ok) {
+                            window.location.reload();
+                        } else {
+                            alert('Failed to delete miner. Please try again.');
+                        }
+                    }).catch(error => {
+                        console.error('Error deleting miner:', error);
+                        alert('An error occurred while deleting the miner.');
+                    }).finally(() => {
+                        deleteModal.hide();
+                    });
             }
         });
 
@@ -226,18 +226,18 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: newName })
             }).then(response => response.json())
-            .then(result => {
-                if (result && result.success) {
-                    window.location.reload();
-                } else {
-                    alert(result && result.detail ? result.detail : 'Failed to rename miner.');
-                }
-            }).catch(error => {
-                console.error('Error renaming miner:', error);
-                alert('An error occurred while renaming the miner.');
-            }).finally(() => {
-                renameModal.hide();
-            });
+                .then(result => {
+                    if (result && result.success) {
+                        window.location.reload();
+                    } else {
+                        alert(result && result.detail ? result.detail : 'Failed to rename miner.');
+                    }
+                }).catch(error => {
+                    console.error('Error renaming miner:', error);
+                    alert('An error occurred while renaming the miner.');
+                }).finally(() => {
+                    renameModal.hide();
+                });
         });
 
         const UNIT_KEY = 'hashrate_unit'; // shared with history
@@ -278,4 +278,4 @@
         });
     });
 </script>
-{% endblock %} 
+{% endblock %}
