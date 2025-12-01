@@ -277,6 +277,49 @@
     </div>
 </div>
 
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>Error Rate (%)</h5>
+                <div class="chart-controls">
+                    <button class="btn btn-sm btn-outline-secondary" data-hours="1" onclick="updateAllCharts(1)">1h</button>
+                    <button class="btn btn-sm btn-outline-secondary" data-hours="6" onclick="updateAllCharts(6)">6h</button>
+                    <button class="btn btn-sm btn-outline-secondary active" data-hours="24" onclick="updateAllCharts(24)">24h</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="errorChart"></canvas>
+                </div>
+                <div class="chart-options">
+                    <div class="chart-options-group">
+                        <button class="btn btn-sm btn-light chart-toggle-btn active" id="errorChartCurved" onclick="toggleCurvedLines('errorChart', this)" title="Toggle Curved Lines">
+                            <i class="fas fa-bezier-curve"></i><span class="d-none d-md-inline"> Curved</span>
+                        </button>
+                        <button class="btn btn-sm btn-light chart-toggle-btn active" id="errorChartPoints" onclick="toggleDataPoints('errorChart', this)" title="Toggle Data Points">
+                            <i class="fas fa-circle"></i><span class="d-none d-md-inline"> Points</span>
+                        </button>
+                    </div>
+                    <div class="chart-options-group">
+                        <div class="dropdown d-inline-block">
+                            <button class="btn btn-sm btn-light dropdown-toggle" type="button" id="errorLegendDropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Legend Position">
+                                <i class="fas fa-list"></i><span class="d-none d-md-inline"> Legend</span>
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="errorLegendDropdown">
+                                <li><a class="dropdown-item" href="#" onclick="changeLegendPosition('errorChart', 'top'); return false;">Top</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="changeLegendPosition('errorChart', 'bottom'); return false;">Bottom</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="changeLegendPosition('errorChart', 'left'); return false;">Left</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="changeLegendPosition('errorChart', 'right'); return false;">Right</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Store the readings data for JavaScript -->
 <script id="readings-data" type="application/json">
 {{ readings_by_miner|tojson }}
@@ -296,6 +339,7 @@
     let hashRateChart = null;
     let tempChart = null;
     let voltageChart = null;
+    let errorChart = null;
     
     // Global data storage
     let rawData = null;
@@ -306,6 +350,7 @@
         if (chartId === 'hashRateChart') return hashRateChart;
         if (chartId === 'tempChart') return tempChart;
         if (chartId === 'voltageChart') return voltageChart;
+        if (chartId === 'errorChart') return errorChart;
         return null;
     }
     
@@ -349,7 +394,7 @@
         });
         
         // Update each chart
-        ['hashRateChart', 'tempChart', 'voltageChart'].forEach(chartId => {
+        ['hashRateChart', 'tempChart', 'voltageChart', 'errorChart'].forEach(chartId => {
             updateChartFromSlice(chartId, dataSlice);
         });
     }
@@ -374,9 +419,10 @@
                 // Store both the raw timestamp and the date object
                 return {
                     x: new Date(r.full_timestamp),
-                                         y: chartId === 'hashRateChart' ? convertHashrate(r.hash_rate)
+                    y: chartId === 'hashRateChart' ? convertHashrate(r.hash_rate)
                         : chartId === 'tempChart' ? r.temperature
-                        : /* voltageChart */ r.voltage,
+                        : chartId === 'voltageChart' ? r.voltage
+                        : /* errorChart */ (r.error_percentage || 0),
                     rawTimestamp: r.timestamp // Store the raw timestamp for display
                 };
             });
@@ -675,6 +721,30 @@
                 }
             });
         }
+        
+        // Initialize Error Rate chart
+        const errorCtx = document.getElementById('errorChart');
+        if (errorCtx) {
+            errorChart = new Chart(errorCtx, {
+                type: 'line',
+                data: {
+                    datasets: []
+                },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        ...commonOptions.scales,
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '%'
+                            }
+                        }
+                    }
+                }
+            });
+        }
     }
     
     // Auto-refresh the charts every 60 seconds
@@ -719,7 +789,7 @@
     function applyChartTheme(isDark) {
         const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
         const tickColor = isDark ? '#e9ecef' : '#212529';
-        const charts = [hashRateChart, tempChart, voltageChart];
+        const charts = [hashRateChart, tempChart, voltageChart, errorChart];
         charts.forEach(c => {
             if (!c) return;
             if (c.options.scales && c.options.scales.x) {
