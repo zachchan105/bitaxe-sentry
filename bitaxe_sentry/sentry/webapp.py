@@ -95,6 +95,10 @@ def dashboard(request: Request, success: Optional[str] = None, error: Optional[s
             # Ensure voltage has a default value if it's None
             if latest.voltage is None:
                 latest.voltage = 0.0
+            
+            # Ensure error_percentage has a default value if it's None
+            if not hasattr(latest, 'error_percentage') or latest.error_percentage is None:
+                latest.error_percentage = 0.0
                 
             latest_readings.append({
                 "miner": miner,
@@ -163,6 +167,11 @@ def history(
             voltage = reading.voltage
             if voltage is None:
                 voltage = 0.0
+            
+            # Ensure error_percentage has a default value if it's None
+            error_percentage = reading.error_percentage if hasattr(reading, 'error_percentage') else 0.0
+            if error_percentage is None:
+                error_percentage = 0.0
                 
             readings_by_miner[miner.name].append({
                 "timestamp": reading.timestamp.strftime("%H:%M:%S"),
@@ -170,7 +179,8 @@ def history(
                 "hash_rate": reading.hash_rate,
                 "temperature": reading.temperature,
                 "best_diff": format_large_number(reading.best_diff),
-                "voltage": voltage
+                "voltage": voltage,
+                "error_percentage": error_percentage
             })
     
     # Pre-slice the data for different time windows

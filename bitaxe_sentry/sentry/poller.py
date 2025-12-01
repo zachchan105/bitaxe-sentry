@@ -116,8 +116,9 @@ def poll_once():
                     miner_id=miner.id,
                     hash_rate=data["hashRate"],
                     temperature=data["temp"],
-                    best_diff=normalized_best_diff,  # Store normalized difficulty
-                    voltage=converted_voltage  # Convert from millivolts to volts
+                    best_diff=normalized_best_diff,
+                    voltage=converted_voltage,  # Convert from millivolts to volts
+                    error_percentage=data.get("errorPercentage", 0.0)  # Error percentage
                 )
                 session.add(r)
                 session.commit()

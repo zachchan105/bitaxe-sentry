@@ -111,6 +111,25 @@
                         </div>
                     </div>
                 </div>
+                
+                <div class="row">
+                    <div class="col-6">
+                        <div class="mb-3">
+                            <h6 class="text-muted mb-1">Error Rate</h6>
+                            <h5 class="
+                                {% if item.reading.error_percentage > 5.0 %}
+                                    temp-danger
+                                {% elif item.reading.error_percentage > 2.0 %}
+                                    temp-warning
+                                {% else %}
+                                    temp-normal
+                                {% endif %}
+                            ">
+                                {{ "%.2f"|format(item.reading.error_percentage) }}%
+                            </h5>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="card-footer text-muted small">
                 <a href="/history?miner_id={{ item.miner.id }}" class="text-decoration-none">View history</a>
