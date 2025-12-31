@@ -138,7 +138,7 @@
     <ul>
         <li>You haven't selected a miner</li>
         <li>No data has been collected yet</li>
-        <li>The selected miner has no data in the last 24 hours</li>
+        <li>The selected miner has no data in the configured retention period</li>
     </ul>
     <p>Wait for more readings to be collected or check your configuration.</p>
 </div>
@@ -149,10 +149,8 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 id="hashRateTitle">Hash Rate</h5>
-                <div class="chart-controls">
-                    <button class="btn btn-sm btn-outline-secondary" data-hours="1" onclick="updateAllCharts(1)">1h</button>
-                    <button class="btn btn-sm btn-outline-secondary" data-hours="6" onclick="updateAllCharts(6)">6h</button>
-                    <button class="btn btn-sm btn-outline-secondary active" data-hours="24" onclick="updateAllCharts(24)">24h</button>
+                <div class="chart-controls" id="hashRateControls">
+                    <!-- Buttons will be generated dynamically by JavaScript -->
                 </div>
             </div>
             <div class="card-body">
@@ -188,10 +186,8 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5>Temperature (°C)</h5>
-                <div class="chart-controls">
-                    <button class="btn btn-sm btn-outline-secondary" data-hours="1" onclick="updateAllCharts(1)">1h</button>
-                    <button class="btn btn-sm btn-outline-secondary" data-hours="6" onclick="updateAllCharts(6)">6h</button>
-                    <button class="btn btn-sm btn-outline-secondary active" data-hours="24" onclick="updateAllCharts(24)">24h</button>
+                <div class="chart-controls" id="tempControls">
+                    <!-- Buttons will be generated dynamically by JavaScript -->
                 </div>
             </div>
             <div class="card-body">
@@ -223,10 +219,8 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5>Voltage (V)</h5>
-                <div class="chart-controls">
-                    <button class="btn btn-sm btn-outline-secondary" data-hours="1" onclick="updateAllCharts(1)">1h</button>
-                    <button class="btn btn-sm btn-outline-secondary" data-hours="6" onclick="updateAllCharts(6)">6h</button>
-                    <button class="btn btn-sm btn-outline-secondary active" data-hours="24" onclick="updateAllCharts(24)">24h</button>
+                <div class="chart-controls" id="voltageControls">
+                    <!-- Buttons will be generated dynamically by JavaScript -->
                 </div>
             </div>
             <div class="card-body">
@@ -258,10 +252,8 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5>Error Rate (%)</h5>
-                <div class="chart-controls">
-                    <button class="btn btn-sm btn-outline-secondary" data-hours="1" onclick="updateAllCharts(1)">1h</button>
-                    <button class="btn btn-sm btn-outline-secondary" data-hours="6" onclick="updateAllCharts(6)">6h</button>
-                    <button class="btn btn-sm btn-outline-secondary active" data-hours="24" onclick="updateAllCharts(24)">24h</button>
+                <div class="chart-controls" id="errorControls">
+                    <!-- Buttons will be generated dynamically by JavaScript -->
                 </div>
             </div>
             <div class="card-body">
@@ -298,6 +290,11 @@
 {{ windowed_data|tojson }}
 </script>
 
+<!-- Store the time windows for JavaScript -->
+<script id="time-windows" type="application/json">
+{{ windows|tojson }}
+</script>
+
 <!-- Store the settings for JavaScript -->
 <script id="chart-settings" type="application/json">
 {{ settings|tojson }}
@@ -318,6 +315,7 @@
     let rawData = null;
     let windowedData = null;
     let chartSettings = null;
+    let timeWindows = null;
     
     // Helper to get chart by ID
     function getChartById(chartId) {
@@ -328,10 +326,46 @@
         return null;
     }
     
-    // Helper function to ensure proper timezone handling
-    function parseTimestamp(timestamp) {
-        // Just create a date object directly
-        return new Date(timestamp);
+    // Helper function to format time window labels
+    function formatTimeWindow(hours) {
+        if (hours < 24) {
+            return `${hours}h`;
+        } else if (hours === 24) {
+            return '24h';
+        } else if (hours < 168) { // Less than 1 week
+            const days = Math.round(hours / 24);
+            return `${days}d`;
+        } else {
+            const weeks = Math.round(hours / 168);
+            return `${weeks}w`;
+        }
+    }
+    
+    // Generate time window buttons for all charts
+    function generateTimeWindowButtons() {
+        const chartIds = ['hashRateControls', 'tempControls', 'voltageControls', 'errorControls'];
+        
+        chartIds.forEach(chartId => {
+            const container = document.getElementById(chartId);
+            if (!container || !timeWindows) return;
+            
+            container.innerHTML = ''; // Clear existing buttons
+            
+            timeWindows.forEach((hours, index) => {
+                const button = document.createElement('button');
+                button.className = 'btn btn-sm btn-outline-secondary';
+                button.setAttribute('data-hours', hours);
+                button.onclick = () => updateAllCharts(hours);
+                button.textContent = formatTimeWindow(hours);
+                
+                // Make 24h active by default if available, otherwise the longest window
+                if (hours === 24 || (index === timeWindows.length - 1 && !timeWindows.includes(24))) {
+                    button.classList.add('active');
+                }
+                
+                container.appendChild(button);
+            });
+        });
     }
     
     // Format time as HH:MM:SS only
@@ -683,7 +717,7 @@
         setInterval(() => {
             // Get current time window from active buttons
             const activeButton = document.querySelector('.chart-controls .active');
-            const hoursWindow = activeButton ? parseInt(activeButton.getAttribute('data-hours'), 10) : 24;
+            const hoursWindow = activeButton ? parseInt(activeButton.getAttribute('data-hours'), 10) : (timeWindows ? timeWindows[timeWindows.length - 1] : 24);
             
             console.log(`Auto-refreshing charts with ${hoursWindow}h window`);
             
@@ -696,14 +730,19 @@
                     const dataElement = doc.getElementById('readings-data');
                     const windowedDataElement = doc.getElementById('windowed-data');
                     const settingsElement = doc.getElementById('chart-settings');
+                    const timeWindowsElement = doc.getElementById('time-windows');
                     
-                    if (dataElement && windowedDataElement && settingsElement) {
+                    if (dataElement && windowedDataElement && settingsElement && timeWindowsElement) {
                         try {
                             rawData = JSON.parse(dataElement.textContent.trim());
                             windowedData = JSON.parse(windowedDataElement.textContent.trim());
                             chartSettings = JSON.parse(settingsElement.textContent.trim());
+                            timeWindows = JSON.parse(timeWindowsElement.textContent.trim());
                             
                             console.log(`Data refreshed at ${new Date().toLocaleTimeString()}`);
+                            
+                            // Regenerate time window buttons in case settings changed
+                            generateTimeWindowButtons();
                             
                             // Update all charts with current time window
                             updateAllCharts(hoursWindow);
@@ -759,7 +798,7 @@
         updateUnitButtons();
         // Re-render datasets with new unit
         const activeButton = document.querySelector('.chart-controls .active');
-        const hoursWindow = activeButton ? parseInt(activeButton.getAttribute('data-hours'), 10) : 24;
+        const hoursWindow = activeButton ? parseInt(activeButton.getAttribute('data-hours'), 10) : (timeWindows ? timeWindows[timeWindows.length - 1] : 24);
         updateAllCharts(hoursWindow);
     }
     function updateUnitButtons() {
@@ -826,17 +865,20 @@
         const dataElement = document.getElementById('readings-data');
         const windowedDataElement = document.getElementById('windowed-data');
         const settingsElement = document.getElementById('chart-settings');
+        const timeWindowsElement = document.getElementById('time-windows');
         
         // Only proceed if we have data
-        if (dataElement && windowedDataElement && settingsElement) {
+        if (dataElement && windowedDataElement && settingsElement && timeWindowsElement) {
             try {
                 rawData = JSON.parse(dataElement.textContent.trim());
                 windowedData = JSON.parse(windowedDataElement.textContent.trim());
                 chartSettings = JSON.parse(settingsElement.textContent.trim());
+                timeWindows = JSON.parse(timeWindowsElement.textContent.trim());
                 
                 console.log("Raw data loaded for miners:", Object.keys(rawData));
                 console.log("Windowed data loaded for time windows:", Object.keys(windowedData));
                 console.log("Chart settings loaded:", chartSettings);
+                console.log("Time windows loaded:", timeWindows);
                 
                 // Check if we actually have data points
                 let hasData = false;
@@ -861,9 +903,13 @@
                     // Initialize charts
                     initCharts();
                     
-                    // Update all charts with 24h window initially
-                    updateAllCharts(24);
-                    updateHashRateTitle(24);
+                    // Generate time window buttons
+                    generateTimeWindowButtons();
+                    
+                    // Update all charts with 24h window initially if available, otherwise longest
+                    const defaultWindow = timeWindows.includes(24) ? 24 : timeWindows[timeWindows.length - 1];
+                    updateAllCharts(defaultWindow);
+                    updateHashRateTitle(defaultWindow);
 
                     // Apply initial theme to charts
                     const isDark = (document.documentElement.getAttribute('data-theme') === 'dark');

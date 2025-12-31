@@ -147,13 +147,14 @@ def history(
             logger.warning(f"Invalid miner_id parameter: {miner_id}")
             selected_miner = None
     
-    # Get historical data - get 24 hours of data
+    # Get historical data based on retention setting
     query = select(Reading)
     if selected_miner:
         query = query.where(Reading.miner_id == selected_miner)
     
-    # Limit to last 24 hours of data to keep chart readable
-    cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+    # Use retention days setting to determine data cutoff
+    retention_hours = settings['RETENTION_DAYS'] * 24
+    cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=retention_hours)
     query = query.where(Reading.timestamp > cutoff)
     
     # Order by timestamp
@@ -189,8 +190,23 @@ def history(
             })
     
     # Pre-slice the data for different time windows
+    # Create dynamic windows based on retention period
+    retention_hours = settings['RETENTION_DAYS'] * 24
+    windows = [1, 6]  # Always show 1h and 6h
+    
+    if retention_hours >= 24:
+        windows.append(24)  # Add 24h if retention allows
+    if retention_hours > 24:
+        # Add a longer window, but cap at retention hours for readability
+        max_window = min(retention_hours, 168)  # Cap at 1 week (168 hours) for readability
+        if max_window not in windows:
+            windows.append(max_window)
+    elif retention_hours < 24:
+        # For short retention periods, add the full retention as an option
+        if retention_hours not in windows and retention_hours > 6:
+            windows.append(int(retention_hours))
+    
     windowed_data = {}
-    windows = [1, 6, 24]
     
     # Find the latest timestamp across all miners
     latest_timestamp = None
@@ -233,7 +249,8 @@ def history(
             "selected_miner": selected_miner,
             "readings_by_miner": readings_by_miner,
             "windowed_data": windowed_data,
-            "settings": settings
+            "settings": settings,
+            "windows": windows
         })
     )
 
