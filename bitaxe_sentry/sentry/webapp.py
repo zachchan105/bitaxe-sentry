@@ -430,4 +430,63 @@ def poll_now():
         return {"success": True, "polled_count": success_count}
     except Exception as e:
         logger.exception("Error triggering poll")
+        return {"success": False, "error": str(e)}
+
+class MuteRequest(BaseModel):
+    miner_id: int
+    minutes: int
+
+class UnmuteRequest(BaseModel):
+    miner_id: int
+
+@app.post("/api/notifications/mute")
+def mute_notifications(request: MuteRequest):
+    """Mute notifications for a specific miner for specified number of minutes"""
+    try:
+        from .notifier import set_miner_mute
+        if set_miner_mute(request.miner_id, request.minutes):
+            return {"success": True, "muted_for_minutes": request.minutes}
+        else:
+            return {"success": False, "error": "Failed to set mute"}
+    except Exception as e:
+        logger.exception("Error muting notifications")
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/notifications/unmute")
+def unmute_notifications(request: UnmuteRequest):
+    """Unmute notifications for a specific miner"""
+    try:
+        from .notifier import clear_miner_mute
+        if clear_miner_mute(request.miner_id):
+            return {"success": True}
+        else:
+            return {"success": False, "error": "Failed to unmute"}
+    except Exception as e:
+        logger.exception("Error unmuting notifications")
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/notifications/status/{miner_id}")
+def get_notification_status(miner_id: int):
+    """Get current notification mute status for a specific miner"""
+    try:
+        from .notifier import is_miner_muted, MUTE_STATUS_FILE
+        import json
+        
+        is_muted = is_miner_muted(miner_id)
+        mute_until = None
+        
+        if MUTE_STATUS_FILE.exists():
+            with open(MUTE_STATUS_FILE, 'r') as f:
+                mute_data = json.load(f)
+                miners = mute_data.get('miners', {})
+                if str(miner_id) in miners:
+                    mute_until = miners[str(miner_id)].get('mute_until')
+        
+        return {
+            "success": True,
+            "muted": is_muted,
+            "mute_until": mute_until
+        }
+    except Exception as e:
+        logger.exception("Error getting notification status")
         return {"success": False, "error": str(e)} 

@@ -1,10 +1,129 @@
 import requests
 import logging
+import json
+import pathlib
+import os
 from .config import DISCORD_WEBHOOK, reload_config
 import socket
 import datetime
 
 logger = logging.getLogger(__name__)
+
+# Path to mute status file (stores per-miner mutes)
+DATA_DIR = pathlib.Path(os.getenv("DB_DATA_DIR", "/app/data"))
+MUTE_STATUS_FILE = DATA_DIR / "notification_mute.json"
+
+def _load_mute_data():
+    """Load mute data from file"""
+    try:
+        if not MUTE_STATUS_FILE.exists():
+            return {}
+        with open(MUTE_STATUS_FILE, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.warning(f"Error loading mute data: {e}")
+        return {}
+
+def _save_mute_data(mute_data):
+    """Save mute data to file"""
+    try:
+        DATA_DIR.mkdir(exist_ok=True)
+        with open(MUTE_STATUS_FILE, 'w') as f:
+            json.dump(mute_data, f, indent=2)
+        return True
+    except Exception as e:
+        logger.error(f"Error saving mute data: {e}")
+        return False
+
+def is_miner_muted(miner_id):
+    """
+    Check if notifications are currently muted for a specific miner.
+    
+    Args:
+        miner_id: ID of the miner to check
+    
+    Returns:
+        bool: True if notifications are muted for this miner, False otherwise
+    """
+    try:
+        mute_data = _load_mute_data()
+        miner_mutes = mute_data.get('miners', {})
+        
+        if str(miner_id) not in miner_mutes:
+            return False
+        
+        mute_until = miner_mutes[str(miner_id)].get('mute_until', 0)
+        current_time = int(datetime.datetime.utcnow().timestamp() * 1000)  # milliseconds
+        
+        if current_time < mute_until:
+            remaining_ms = mute_until - current_time
+            remaining_mins = remaining_ms / 60000
+            logger.info(f"Miner {miner_id} notifications are muted for {remaining_mins:.1f} more minutes")
+            return True
+        else:
+            # Mute expired, clean up
+            mute_data = _load_mute_data()
+            if 'miners' in mute_data and str(miner_id) in mute_data['miners']:
+                del mute_data['miners'][str(miner_id)]
+                _save_mute_data(mute_data)
+            return False
+    except Exception as e:
+        logger.warning(f"Error checking mute status for miner {miner_id}: {e}")
+        return False
+
+def set_miner_mute(miner_id, minutes):
+    """
+    Set notification mute for a specific miner.
+    
+    Args:
+        miner_id: ID of the miner to mute
+        minutes: Number of minutes to mute notifications
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        mute_data = _load_mute_data()
+        if 'miners' not in mute_data:
+            mute_data['miners'] = {}
+        
+        mute_until = int(datetime.datetime.utcnow().timestamp() * 1000) + (minutes * 60 * 1000)
+        
+        mute_data['miners'][str(miner_id)] = {
+            'mute_until': mute_until,
+            'muted_at': int(datetime.datetime.utcnow().timestamp() * 1000),
+            'duration_minutes': minutes
+        }
+        
+        if _save_mute_data(mute_data):
+            logger.info(f"Miner {miner_id} notifications muted for {minutes} minutes")
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"Error setting mute for miner {miner_id}: {e}")
+        return False
+
+def clear_miner_mute(miner_id):
+    """
+    Clear notification mute for a specific miner (unmute).
+    
+    Args:
+        miner_id: ID of the miner to unmute
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        mute_data = _load_mute_data()
+        if 'miners' in mute_data and str(miner_id) in mute_data['miners']:
+            del mute_data['miners'][str(miner_id)]
+            if _save_mute_data(mute_data):
+                logger.info(f"Miner {miner_id} notifications unmuted")
+                return True
+        return True  # Already unmuted
+    except Exception as e:
+        logger.error(f"Error clearing mute for miner {miner_id}: {e}")
+        return False
 
 def format_difficulty_for_display(diff_value):
     """
@@ -35,6 +154,7 @@ def send_startup_notification(service="main"):
     Args:
         service: The service that's starting ('main' or 'web')
     """
+    # Note: Startup notifications are not muted - they're important for verifying webhook config
     # Reload config to ensure we have the latest webhook URL
     reload_config()
     from .config import DISCORD_WEBHOOK
@@ -81,6 +201,11 @@ def send_alert(miner, reading, alert_type="temperature"):
         reading: Reading instance with temperature/voltage data
         alert_type: Type of alert ("temperature" or "voltage")
     """
+    # Check if notifications are muted for this miner
+    if is_miner_muted(miner.id):
+        logger.info(f"Miner {miner.name} (ID: {miner.id}) notifications are muted, skipping {alert_type} alert")
+        return False
+    
     # Reload config to ensure we have the latest webhook URL
     reload_config()
     from .config import DISCORD_WEBHOOK
@@ -150,6 +275,11 @@ def send_diff_alert(miner, reading):
         miner: The miner instance
         reading: Reading instance with best_diff data
     """
+    # Check if notifications are muted for this miner
+    if is_miner_muted(miner.id):
+        logger.info(f"Miner {miner.name} (ID: {miner.id}) notifications are muted, skipping diff alert")
+        return False
+    
     # Reload config to ensure we have the latest webhook URL
     reload_config()
     from .config import DISCORD_WEBHOOK
@@ -229,6 +359,11 @@ def send_miner_offline_alert(miner):
     Returns:
         bool: True if notification was sent successfully, False otherwise
     """
+    # Check if notifications are muted for this miner
+    if is_miner_muted(miner.id):
+        logger.info(f"Miner {miner.name} (ID: {miner.id}) notifications are muted, skipping offline alert")
+        return False
+    
     # Reload config to ensure we have the latest webhook URL
     reload_config()
     from .config import DISCORD_WEBHOOK
