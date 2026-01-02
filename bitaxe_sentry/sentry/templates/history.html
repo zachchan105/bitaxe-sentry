@@ -632,8 +632,12 @@
                                 formattedValue = context.parsed.y.toFixed(2) + ' ' + (unit === 'TH' ? 'TH/s' : 'MH/s');
                             } else if (context.chart.canvas.id === 'tempChart') {
                                 formattedValue = context.parsed.y.toFixed(1) + ' °C';
-                            } else { // voltageChart
+                            } else if (context.chart.canvas.id === 'voltageChart') {
                                 formattedValue = context.parsed.y.toFixed(2) + ' V';
+                            } else if (context.chart.canvas.id === 'errorChart') {
+                                formattedValue = context.parsed.y.toFixed(2) + ' %';
+                            } else {
+                                formattedValue = context.parsed.y.toFixed(2);
                             }
                             
                             return `${context.dataset.label}: ${formattedValue}`;
