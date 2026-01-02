@@ -19,9 +19,7 @@ DEFAULT_SETTINGS = {
     "TEMP_MAX": 70,
     "VOLT_MIN": 5.0,
     "BITAXE_ENDPOINTS": [],
-    "DISCORD_WEBHOOK_URL": "",
-    "CHART_SHOW_POINTS": True,
-    "CHART_CURVED_LINES": True
+    "DISCORD_WEBHOOK_URL": ""
 }
 
 def ensure_data_dir():
@@ -56,8 +54,6 @@ def load_settings():
             settings["TEMP_MIN"] = float(settings["TEMP_MIN"])
             settings["TEMP_MAX"] = float(settings["TEMP_MAX"])
             settings["VOLT_MIN"] = float(settings["VOLT_MIN"])
-            settings["CHART_SHOW_POINTS"] = bool(settings.get("CHART_SHOW_POINTS", True))
-            settings["CHART_CURVED_LINES"] = bool(settings.get("CHART_CURVED_LINES", True))
             
             # Log the converted values for debugging
             logger.info(f"Loaded settings - POLL_INTERVAL_MINUTES: {settings['POLL_INTERVAL_MINUTES']}, "
@@ -70,8 +66,6 @@ def load_settings():
             settings["TEMP_MIN"] = DEFAULT_SETTINGS["TEMP_MIN"]
             settings["TEMP_MAX"] = DEFAULT_SETTINGS["TEMP_MAX"]
             settings["VOLT_MIN"] = DEFAULT_SETTINGS["VOLT_MIN"]
-            settings["CHART_SHOW_POINTS"] = DEFAULT_SETTINGS["CHART_SHOW_POINTS"]
-            settings["CHART_CURVED_LINES"] = DEFAULT_SETTINGS["CHART_CURVED_LINES"]
         
         return settings
     except Exception as e:
@@ -94,8 +88,6 @@ def save_settings(settings_dict):
         settings_dict["TEMP_MIN"] = float(settings_dict.get("TEMP_MIN", DEFAULT_SETTINGS["TEMP_MIN"]))
         settings_dict["TEMP_MAX"] = float(settings_dict.get("TEMP_MAX", DEFAULT_SETTINGS["TEMP_MAX"]))
         settings_dict["VOLT_MIN"] = float(settings_dict.get("VOLT_MIN", DEFAULT_SETTINGS["VOLT_MIN"]))
-        settings_dict["CHART_SHOW_POINTS"] = bool(settings_dict.get("CHART_SHOW_POINTS", DEFAULT_SETTINGS["CHART_SHOW_POINTS"]))
-        settings_dict["CHART_CURVED_LINES"] = bool(settings_dict.get("CHART_CURVED_LINES", DEFAULT_SETTINGS["CHART_CURVED_LINES"]))
         
         # Log the converted values for debugging
         logger.info(f"Saving settings - POLL_INTERVAL_MINUTES: {settings_dict['POLL_INTERVAL_MINUTES']}, "
