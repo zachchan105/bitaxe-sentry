@@ -397,12 +397,15 @@
                             
                             let statusMsg = 'Notifications muted for ';
                             if (remainingHours > 0) {
-                                statusMsg += `${remainingHours} hour${remainingHours > 1 ? 's' : ''} `;
+                                statusMsg += `${remainingHours} hour${remainingHours > 1 ? 's' : ''}`;
+                                if (remainingMinsOnly > 0) {
+                                    statusMsg += ` and ${remainingMinsOnly} more minute${remainingMinsOnly > 1 ? 's' : ''}`;
+                                } else {
+                                    statusMsg += ' more';
+                                }
+                            } else {
+                                statusMsg += `${remainingMinsOnly} more minute${remainingMinsOnly > 1 ? 's' : ''}`;
                             }
-                            if (remainingMinsOnly > 0) {
-                                statusMsg += `${remainingMinsOnly} minute${remainingMinsOnly > 1 ? 's' : ''}`;
-                            }
-                            statusMsg += ' more';
                             
                             muteStatusText.textContent = statusMsg;
                             muteStatusInfo.style.display = 'block';
