@@ -118,6 +118,32 @@
                 </div>
             </div>
             
+            <hr>
+            
+            <div class="mb-4">
+                <h5 class="mb-3">Chart Display Settings</h5>
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="chart_show_points" name="CHART_SHOW_POINTS" 
+                               value="true" {% if settings.CHART_SHOW_POINTS %}checked{% endif %}>
+                        <label class="form-check-label" for="chart_show_points">
+                            Show data points on charts
+                        </label>
+                        <div class="form-text">Display individual data points on all history charts</div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="chart_curved_lines" name="CHART_CURVED_LINES" 
+                               value="true" {% if settings.CHART_CURVED_LINES %}checked{% endif %}>
+                        <label class="form-check-label" for="chart_curved_lines">
+                            Use curved lines on charts
+                        </label>
+                        <div class="form-text">Display chart lines with smooth curves instead of straight lines</div>
+                    </div>
+                </div>
+            </div>
+            
             <div class="d-flex justify-content-end">
                 <button type="submit" class="btn btn-primary">Save Settings</button>
             </div>

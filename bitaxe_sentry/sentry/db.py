@@ -34,6 +34,7 @@ class Reading(SQLModel, table=True):
     temperature: float
     best_diff: str
     voltage: float = Field(default=0.0)  # Voltage in millivolts
+    error_percentage: float = Field(default=0.0)  # Error percentage
     # Additional fields can be added here as needed
 
 
