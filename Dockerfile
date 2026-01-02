@@ -13,6 +13,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy app code before switching users
 COPY bitaxe_sentry /app/bitaxe_sentry
 
+# Copy Alembic configuration and migrations
+COPY alembic.ini /app/alembic.ini
+COPY alembic /app/alembic
+
 # Prepare the persistent data directory and fix permissions
 RUN mkdir -p /var/lib/bitaxe && chown -R 1000:1000 /var/lib/bitaxe
 
