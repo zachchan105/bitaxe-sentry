@@ -138,7 +138,7 @@
     <ul>
         <li>You haven't selected a miner</li>
         <li>No data has been collected yet</li>
-        <li>The selected miner has no data in the last 24 hours</li>
+        <li>The selected miner has no data in the configured retention period</li>
     </ul>
     <p>Wait for more readings to be collected or check your configuration.</p>
 </div>
@@ -149,10 +149,8 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 id="hashRateTitle">Hash Rate</h5>
-                <div class="chart-controls">
-                    <button class="btn btn-sm btn-outline-secondary" data-hours="1" onclick="updateAllCharts(1)">1h</button>
-                    <button class="btn btn-sm btn-outline-secondary" data-hours="6" onclick="updateAllCharts(6)">6h</button>
-                    <button class="btn btn-sm btn-outline-secondary active" data-hours="24" onclick="updateAllCharts(24)">24h</button>
+                <div class="chart-controls" id="hashRateControls">
+                    <!-- Buttons will be generated dynamically by JavaScript -->
                 </div>
             </div>
             <div class="card-body">
@@ -196,10 +194,8 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5>Temperature (°C)</h5>
-                <div class="chart-controls">
-                    <button class="btn btn-sm btn-outline-secondary" data-hours="1" onclick="updateAllCharts(1)">1h</button>
-                    <button class="btn btn-sm btn-outline-secondary" data-hours="6" onclick="updateAllCharts(6)">6h</button>
-                    <button class="btn btn-sm btn-outline-secondary active" data-hours="24" onclick="updateAllCharts(24)">24h</button>
+                <div class="chart-controls" id="tempControls">
+                    <!-- Buttons will be generated dynamically by JavaScript -->
                 </div>
             </div>
             <div class="card-body">
@@ -239,10 +235,8 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5>Voltage (V)</h5>
-                <div class="chart-controls">
-                    <button class="btn btn-sm btn-outline-secondary" data-hours="1" onclick="updateAllCharts(1)">1h</button>
-                    <button class="btn btn-sm btn-outline-secondary" data-hours="6" onclick="updateAllCharts(6)">6h</button>
-                    <button class="btn btn-sm btn-outline-secondary active" data-hours="24" onclick="updateAllCharts(24)">24h</button>
+                <div class="chart-controls" id="voltageControls">
+                    <!-- Buttons will be generated dynamically by JavaScript -->
                 </div>
             </div>
             <div class="card-body">
@@ -277,6 +271,47 @@
     </div>
 </div>
 
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>Error Rate (%)</h5>
+                <div class="chart-controls" id="errorControls">
+                    <!-- Buttons will be generated dynamically by JavaScript -->
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="errorChart"></canvas>
+                </div>
+                <div class="chart-options">
+                    <div class="chart-options-group">
+                        <button class="btn btn-sm btn-light chart-toggle-btn active" id="errorChartCurved" onclick="toggleCurvedLines('errorChart', this)" title="Toggle Curved Lines">
+                            <i class="fas fa-bezier-curve"></i><span class="d-none d-md-inline"> Curved</span>
+                        </button>
+                        <button class="btn btn-sm btn-light chart-toggle-btn active" id="errorChartPoints" onclick="toggleDataPoints('errorChart', this)" title="Toggle Data Points">
+                            <i class="fas fa-circle"></i><span class="d-none d-md-inline"> Points</span>
+                        </button>
+                    </div>
+                    <div class="chart-options-group">
+                        <div class="dropdown d-inline-block">
+                            <button class="btn btn-sm btn-light dropdown-toggle" type="button" id="errorLegendDropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Legend Position">
+                                <i class="fas fa-list"></i><span class="d-none d-md-inline"> Legend</span>
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="errorLegendDropdown">
+                                <li><a class="dropdown-item" href="#" onclick="changeLegendPosition('errorChart', 'top'); return false;">Top</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="changeLegendPosition('errorChart', 'bottom'); return false;">Bottom</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="changeLegendPosition('errorChart', 'left'); return false;">Left</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="changeLegendPosition('errorChart', 'right'); return false;">Right</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Store the readings data for JavaScript -->
 <script id="readings-data" type="application/json">
 {{ readings_by_miner|tojson }}
@@ -285,6 +320,11 @@
 <!-- Store the windowed data for JavaScript -->
 <script id="windowed-data" type="application/json">
 {{ windowed_data|tojson }}
+</script>
+
+<!-- Store the time windows for JavaScript -->
+<script id="time-windows" type="application/json">
+{{ windows|tojson }}
 </script>
 
 {% endif %}
@@ -296,28 +336,67 @@
     let hashRateChart = null;
     let tempChart = null;
     let voltageChart = null;
+    let errorChart = null;
     
     // Global data storage
     let rawData = null;
     let windowedData = null;
+    let timeWindows = null;
     
     // Helper to get chart by ID
     function getChartById(chartId) {
         if (chartId === 'hashRateChart') return hashRateChart;
         if (chartId === 'tempChart') return tempChart;
         if (chartId === 'voltageChart') return voltageChart;
+        if (chartId === 'errorChart') return errorChart;
         return null;
     }
     
-    // Helper function to ensure proper timezone handling
-    function parseTimestamp(timestamp) {
-        // Just create a date object directly
-        return new Date(timestamp);
+    // Helper function to format time window labels
+    function formatTimeWindow(hours) {
+        if (hours < 24) {
+            return `${hours}h`;
+        } else if (hours === 24) {
+            return '24h';
+        } else if (hours < 168) { // Less than 1 week
+            const days = Math.round(hours / 24);
+            return `${days}d`;
+        } else {
+            const weeks = Math.round(hours / 168);
+            return `${weeks}w`;
+        }
     }
     
-    // Format time as HH:MM:SS only
+    // Generate time window buttons for all charts
+    function generateTimeWindowButtons() {
+        const chartIds = ['hashRateControls', 'tempControls', 'voltageControls', 'errorControls'];
+        
+        chartIds.forEach(chartId => {
+            const container = document.getElementById(chartId);
+            if (!container || !timeWindows) return;
+            
+            container.innerHTML = ''; // Clear existing buttons
+            
+            timeWindows.forEach((hours, index) => {
+                const button = document.createElement('button');
+                button.className = 'btn btn-sm btn-outline-secondary';
+                button.setAttribute('data-hours', hours);
+                button.onclick = () => updateAllCharts(hours);
+                button.textContent = formatTimeWindow(hours);
+                
+                // Make 24h active by default if available, otherwise the longest window
+                if (hours === 24 || (index === timeWindows.length - 1 && !timeWindows.includes(24))) {
+                    button.classList.add('active');
+                }
+                
+                container.appendChild(button);
+            });
+        });
+    }
+    
+    // Format time as HH:MM:SS in local timezone
     function formatTimeOnly(date) {
-        return date.toTimeString().split(' ')[0]; // HH:MM:SS format
+        return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'});
     }
     
     // Update all charts with the selected time window
@@ -349,61 +428,9 @@
         });
         
         // Update each chart
-        ['hashRateChart', 'tempChart', 'voltageChart'].forEach(chartId => {
+        ['hashRateChart', 'tempChart', 'voltageChart', 'errorChart'].forEach(chartId => {
             updateChartFromSlice(chartId, dataSlice);
         });
-    }
-    
-    // Update a specific chart from a data slice
-    function updateChartFromSlice(chartId, slice) {
-        const chart = getChartById(chartId);
-        if (!chart) return;
-        
-        // Get button states
-        const curvedButton = document.getElementById(chartId + 'Curved');
-        const pointsButton = document.getElementById(chartId + 'Points');
-        
-        const useCurvedLines = curvedButton ? curvedButton.classList.contains('active') : true;
-        const showPoints = pointsButton ? pointsButton.classList.contains('active') : true;
-        
-        const datasets = [];
-        
-        Object.entries(slice).forEach(([minerName, readings]) => {
-            // Turn each reading into a {x:Date, y:value} point
-            const data = readings.map(r => {
-                // Store both the raw timestamp and the date object
-                return {
-                    x: new Date(r.full_timestamp),
-                                         y: chartId === 'hashRateChart' ? convertHashrate(r.hash_rate)
-                        : chartId === 'tempChart' ? r.temperature
-                        : /* voltageChart */ r.voltage,
-                    rawTimestamp: r.timestamp // Store the raw timestamp for display
-                };
-            });
-            
-            datasets.push({
-                label: minerName,
-                data: data,
-                backgroundColor: getColorForMiner(minerName),
-                borderColor: getColorForMiner(minerName),
-                borderWidth: 2,
-                fill: false,
-                tension: useCurvedLines ? 0.4 : 0, // Use button state
-                pointRadius: showPoints ? 3 : 0, // Use button state
-                pointHoverRadius: 5,
-                spanGaps: true,
-                showLine: true
-            });
-        });
-        
-        // Update the chart
-        chart.data.datasets = datasets;
-        chart.update({
-            duration: 300,
-            easing: 'easeOutQuad'
-        });
-        
-        console.log(`Updated ${chartId} with ${datasets.length} datasets`);
     }
     
     // Toggle curved lines for a chart
@@ -444,6 +471,64 @@
             duration: 300,
             easing: 'easeOutQuad'
         });
+    }
+    
+    // Get button state for a chart
+    function getButtonState(chartId, buttonType) {
+        const button = document.getElementById(`${chartId}${buttonType}`);
+        return button && button.classList.contains('active');
+    }
+    
+    // Update a specific chart from a data slice
+    function updateChartFromSlice(chartId, slice) {
+        const chart = getChartById(chartId);
+        if (!chart) return;
+        
+        // Use button states for chart display options
+        const curvedButton = document.getElementById(`${chartId}Curved`);
+        const pointsButton = document.getElementById(`${chartId}Points`);
+        const useCurvedLines = curvedButton ? curvedButton.classList.contains('active') : true;
+        const showPoints = pointsButton ? pointsButton.classList.contains('active') : true;
+        
+        const datasets = [];
+        
+        Object.entries(slice).forEach(([minerName, readings]) => {
+            // Turn each reading into a {x:Date, y:value} point
+            const data = readings.map(r => {
+                // Store both the raw timestamp and the date object
+                return {
+                    x: new Date(r.full_timestamp),
+                    y: chartId === 'hashRateChart' ? convertHashrate(r.hash_rate)
+                        : chartId === 'tempChart' ? r.temperature
+                        : chartId === 'voltageChart' ? r.voltage
+                        : /* errorChart */ (r.error_percentage || 0),
+                    rawTimestamp: r.timestamp // Store the raw timestamp for display
+                };
+            });
+            
+            datasets.push({
+                label: minerName,
+                data: data,
+                backgroundColor: getColorForMiner(minerName),
+                borderColor: getColorForMiner(minerName),
+                borderWidth: 2,
+                fill: false,
+                tension: useCurvedLines ? 0.4 : 0, // Use button state
+                pointRadius: showPoints ? 3 : 0, // Use button state
+                pointHoverRadius: 5,
+                spanGaps: true,
+                showLine: true
+            });
+        });
+        
+        // Update the chart
+        chart.data.datasets = datasets;
+        chart.update({
+            duration: 300,
+            easing: 'easeOutQuad'
+        });
+        
+        console.log(`Updated ${chartId} with ${datasets.length} datasets`);
     }
     
     // Change legend position for a chart
@@ -547,21 +632,21 @@
                                 formattedValue = context.parsed.y.toFixed(2) + ' ' + (unit === 'TH' ? 'TH/s' : 'MH/s');
                             } else if (context.chart.canvas.id === 'tempChart') {
                                 formattedValue = context.parsed.y.toFixed(1) + ' °C';
-                            } else { // voltageChart
+                            } else if (context.chart.canvas.id === 'voltageChart') {
                                 formattedValue = context.parsed.y.toFixed(2) + ' V';
+                            } else if (context.chart.canvas.id === 'errorChart') {
+                                formattedValue = context.parsed.y.toFixed(2) + ' %';
+                            } else {
+                                formattedValue = context.parsed.y.toFixed(2);
                             }
                             
                             return `${context.dataset.label}: ${formattedValue}`;
                         },
                         title: function(context) {
-                            // Use the raw timestamp if available
-                            if (context[0] && context[0].raw && context[0].raw.rawTimestamp) {
-                                return context[0].raw.rawTimestamp;
-                            }
-                            // Fallback to formatted time
+                            // Always use local timezone formatting
                             if (context[0] && context[0].raw && context[0].raw.x) {
-                                const date = context[0].raw.x;
-                                return date.toTimeString().split(' ')[0]; // HH:MM:SS format
+                                const date = new Date(context[0].raw.x);
+                                return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'});
                             }
                             return '';
                         }
@@ -575,7 +660,6 @@
                 x: {
                     type: 'time',
                     time: {
-                        unit: 'hour',
                         displayFormats: {
                             hour: 'HH:mm',
                             minute: 'HH:mm',
@@ -584,12 +668,7 @@
                     },
                     ticks: {
                         autoSkip: true,
-                        maxTicksLimit: 20,
-                        callback: function(value, index, values) {
-                            // Just show the time part in HH:MM format
-                            const date = new Date(value);
-                            return date.toTimeString().split(':').slice(0, 2).join(':'); // HH:MM format
-                        }
+                        maxTicksLimit: 20
                     }
                 }
             },
@@ -675,6 +754,30 @@
                 }
             });
         }
+        
+        // Initialize Error Rate chart
+        const errorCtx = document.getElementById('errorChart');
+        if (errorCtx) {
+            errorChart = new Chart(errorCtx, {
+                type: 'line',
+                data: {
+                    datasets: []
+                },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        ...commonOptions.scales,
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '%'
+                            }
+                        }
+                    }
+                }
+            });
+        }
     }
     
     // Auto-refresh the charts every 60 seconds
@@ -682,7 +785,7 @@
         setInterval(() => {
             // Get current time window from active buttons
             const activeButton = document.querySelector('.chart-controls .active');
-            const hoursWindow = activeButton ? parseInt(activeButton.getAttribute('data-hours'), 10) : 24;
+            const hoursWindow = activeButton ? parseInt(activeButton.getAttribute('data-hours'), 10) : (timeWindows ? timeWindows[timeWindows.length - 1] : 24);
             
             console.log(`Auto-refreshing charts with ${hoursWindow}h window`);
             
@@ -694,13 +797,19 @@
                     const doc = parser.parseFromString(html, 'text/html');
                     const dataElement = doc.getElementById('readings-data');
                     const windowedDataElement = doc.getElementById('windowed-data');
+                    const settingsElement = doc.getElementById('chart-settings');
+                    const timeWindowsElement = doc.getElementById('time-windows');
                     
-                    if (dataElement && windowedDataElement) {
+                    if (dataElement && windowedDataElement && timeWindowsElement) {
                         try {
                             rawData = JSON.parse(dataElement.textContent.trim());
                             windowedData = JSON.parse(windowedDataElement.textContent.trim());
+                            timeWindows = JSON.parse(timeWindowsElement.textContent.trim());
                             
                             console.log(`Data refreshed at ${new Date().toLocaleTimeString()}`);
+                            
+                            // Regenerate time window buttons in case settings changed
+                            generateTimeWindowButtons();
                             
                             // Update all charts with current time window
                             updateAllCharts(hoursWindow);
@@ -719,7 +828,7 @@
     function applyChartTheme(isDark) {
         const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
         const tickColor = isDark ? '#e9ecef' : '#212529';
-        const charts = [hashRateChart, tempChart, voltageChart];
+        const charts = [hashRateChart, tempChart, voltageChart, errorChart];
         charts.forEach(c => {
             if (!c) return;
             if (c.options.scales && c.options.scales.x) {
@@ -756,7 +865,7 @@
         updateUnitButtons();
         // Re-render datasets with new unit
         const activeButton = document.querySelector('.chart-controls .active');
-        const hoursWindow = activeButton ? parseInt(activeButton.getAttribute('data-hours'), 10) : 24;
+        const hoursWindow = activeButton ? parseInt(activeButton.getAttribute('data-hours'), 10) : (timeWindows ? timeWindows[timeWindows.length - 1] : 24);
         updateAllCharts(hoursWindow);
     }
     function updateUnitButtons() {
@@ -822,15 +931,18 @@
         // Get the data elements with JSON contents
         const dataElement = document.getElementById('readings-data');
         const windowedDataElement = document.getElementById('windowed-data');
+        const timeWindowsElement = document.getElementById('time-windows');
         
         // Only proceed if we have data
-        if (dataElement && windowedDataElement) {
+        if (dataElement && windowedDataElement && timeWindowsElement) {
             try {
                 rawData = JSON.parse(dataElement.textContent.trim());
                 windowedData = JSON.parse(windowedDataElement.textContent.trim());
+                timeWindows = JSON.parse(timeWindowsElement.textContent.trim());
                 
                 console.log("Raw data loaded for miners:", Object.keys(rawData));
                 console.log("Windowed data loaded for time windows:", Object.keys(windowedData));
+                console.log("Time windows loaded:", timeWindows);
                 
                 // Check if we actually have data points
                 let hasData = false;
@@ -855,9 +967,13 @@
                     // Initialize charts
                     initCharts();
                     
-                    // Update all charts with 24h window initially
-                    updateAllCharts(24);
-                    updateHashRateTitle(24);
+                    // Generate time window buttons
+                    generateTimeWindowButtons();
+                    
+                    // Update all charts with 24h window initially if available, otherwise longest
+                    const defaultWindow = timeWindows.includes(24) ? 24 : timeWindows[timeWindows.length - 1];
+                    updateAllCharts(defaultWindow);
+                    updateHashRateTitle(defaultWindow);
 
                     // Apply initial theme to charts
                     const isDark = (document.documentElement.getAttribute('data-theme') === 'dark');

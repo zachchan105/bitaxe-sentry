@@ -53,6 +53,9 @@
                     <span class="badge {% if item.timestamp_ago > 30 %}bg-danger{% elif item.timestamp_ago > 15 %}bg-warning{% else %}bg-success{% endif %} me-2">
                         {{ item.timestamp_ago }} min ago
                     </span>
+                    <a href="#" class="text-secondary notification-mute-btn me-2" data-miner-id="{{ item.miner.id }}" data-miner-name="{{ item.miner.name }}" title="Mute notifications for this miner">
+                        <i class="bi bi-bell notification-bell-icon" data-miner-id="{{ item.miner.id }}"></i>
+                    </a>
                     <a href="#" class="text-danger delete-miner" data-miner-id="{{ item.miner.id }}" data-miner-name="{{ item.miner.name }}" title="Delete miner">
                         <i class="bi bi-trash"></i>
                     </a>
@@ -111,6 +114,25 @@
                         </div>
                     </div>
                 </div>
+                
+                <div class="row">
+                    <div class="col-6">
+                        <div class="mb-3">
+                            <h6 class="text-muted mb-1">Error Rate</h6>
+                            <h5 class="
+                                {% if item.reading.error_percentage > 5.0 %}
+                                    temp-danger
+                                {% elif item.reading.error_percentage > 2.0 %}
+                                    temp-warning
+                                {% else %}
+                                    temp-normal
+                                {% endif %}
+                            ">
+                                {{ "%.2f"|format(item.reading.error_percentage) }}%
+                            </h5>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="card-footer text-muted small">
                 <a href="/history?miner_id={{ item.miner.id }}" class="text-decoration-none">View history</a>
@@ -158,6 +180,67 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" id="confirmRenameBtn">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Notification Mute Modal -->
+<div class="modal fade" id="notificationMuteModal" tabindex="-1" aria-labelledby="notificationMuteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="notificationMuteModalLabel">Mute Notifications</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3">Mute notifications for <strong id="muteMinerName"></strong>:</p>
+                <div class="list-group">
+                    <button type="button" class="list-group-item list-group-item-action mute-option" data-minutes="15">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">15 minutes</h6>
+                        </div>
+                    </button>
+                    <button type="button" class="list-group-item list-group-item-action mute-option" data-minutes="30">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">30 minutes</h6>
+                        </div>
+                    </button>
+                    <button type="button" class="list-group-item list-group-item-action mute-option" data-minutes="60">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">1 hour</h6>
+                        </div>
+                    </button>
+                    <button type="button" class="list-group-item list-group-item-action mute-option" data-minutes="120">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">2 hours</h6>
+                        </div>
+                    </button>
+                    <button type="button" class="list-group-item list-group-item-action mute-option" data-minutes="240">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">4 hours</h6>
+                        </div>
+                    </button>
+                    <button type="button" class="list-group-item list-group-item-action mute-option" data-minutes="480">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">8 hours</h6>
+                        </div>
+                    </button>
+                    <button type="button" class="list-group-item list-group-item-action mute-option" data-minutes="1440">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">24 hours</h6>
+                        </div>
+                    </button>
+                </div>
+                <div class="mt-3" id="muteStatusInfo" style="display: none;">
+                    <div class="alert alert-info mb-0">
+                        <small id="muteStatusText"></small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="unmuteBtn" style="display: none;">Unmute Now</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -276,6 +359,172 @@
             el.style.cursor = 'pointer';
             el.addEventListener('click', toggleUnit);
         });
+
+        // Notification mute functionality (per miner)
+        const muteModal = new bootstrap.Modal(document.getElementById('notificationMuteModal'));
+        const muteStatusInfo = document.getElementById('muteStatusInfo');
+        const muteStatusText = document.getElementById('muteStatusText');
+        const unmuteBtn = document.getElementById('unmuteBtn');
+        let currentMinerId = null;
+
+        // Check mute status for a specific miner and update UI
+        function updateMuteStatus(minerId) {
+            if (!minerId) return;
+            
+            fetch(`/api/notifications/status/${minerId}`)
+                .then(response => response.json())
+                .then(result => {
+                    if (result && result.success) {
+                        const bellIcon = document.querySelector(`.notification-bell-icon[data-miner-id="${minerId}"]`);
+                        if (!bellIcon) return;
+                        
+                        const bellBtn = bellIcon.parentElement;
+                        
+                        if (result.muted && result.mute_until) {
+                            // Still muted
+                            bellIcon.classList.remove('bi-bell');
+                            bellIcon.classList.add('bi-bell-slash');
+                            bellBtn.classList.remove('text-secondary');
+                            bellBtn.classList.add('text-warning');
+                            bellBtn.title = 'Notifications muted for this miner';
+                            
+                            const muteUntilTime = result.mute_until;
+                            const now = Date.now();
+                            const remainingMs = muteUntilTime - now;
+                            const remainingMins = Math.ceil(remainingMs / 60000);
+                            const remainingHours = Math.floor(remainingMins / 60);
+                            const remainingMinsOnly = remainingMins % 60;
+                            
+                            let statusMsg = 'Notifications muted for ';
+                            if (remainingHours > 0) {
+                                statusMsg += `${remainingHours} hour${remainingHours > 1 ? 's' : ''}`;
+                                if (remainingMinsOnly > 0) {
+                                    statusMsg += ` and ${remainingMinsOnly} more minute${remainingMinsOnly > 1 ? 's' : ''}`;
+                                } else {
+                                    statusMsg += ' more';
+                                }
+                            } else {
+                                statusMsg += `${remainingMinsOnly} more minute${remainingMinsOnly > 1 ? 's' : ''}`;
+                            }
+                            
+                            muteStatusText.textContent = statusMsg;
+                            muteStatusInfo.style.display = 'block';
+                            unmuteBtn.style.display = 'block';
+                        } else {
+                            // Not muted
+                            bellIcon.classList.remove('bi-bell-slash');
+                            bellIcon.classList.add('bi-bell');
+                            bellBtn.classList.remove('text-warning');
+                            bellBtn.classList.add('text-secondary');
+                            bellBtn.title = 'Mute notifications for this miner';
+                            muteStatusInfo.style.display = 'none';
+                            unmuteBtn.style.display = 'none';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking mute status:', error);
+                });
+        }
+
+        // Update all miner mute statuses
+        function updateAllMuteStatuses() {
+            document.querySelectorAll('.notification-bell-icon').forEach(icon => {
+                const minerId = icon.getAttribute('data-miner-id');
+                if (minerId) {
+                    updateMuteStatus(parseInt(minerId, 10));
+                }
+            });
+        }
+
+        // Open mute modal for a specific miner
+        document.querySelectorAll('.notification-mute-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                currentMinerId = parseInt(this.getAttribute('data-miner-id'), 10);
+                const minerName = this.getAttribute('data-miner-name');
+                
+                document.getElementById('muteMinerName').textContent = minerName;
+                updateMuteStatus(currentMinerId);
+                muteModal.show();
+            });
+        });
+
+        // Handle mute option selection
+        document.querySelectorAll('.mute-option').forEach(btn => {
+            btn.addEventListener('click', function() {
+                if (!currentMinerId) return;
+                
+                const minutes = parseInt(this.getAttribute('data-minutes'), 10);
+                
+                fetch('/api/notifications/mute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ miner_id: currentMinerId, minutes: minutes })
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result && result.success) {
+                        updateMuteStatus(currentMinerId);
+                        muteModal.hide();
+                        
+                        // Show confirmation
+                        const toast = document.createElement('div');
+                        toast.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 end-0 m-3';
+                        toast.style.zIndex = '9999';
+                        toast.innerHTML = `
+                            <strong>Notifications muted</strong> for ${minutes} minute${minutes !== 1 ? 's' : ''}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        `;
+                        document.body.appendChild(toast);
+                        setTimeout(() => toast.remove(), 3000);
+                    } else {
+                        alert('Failed to mute notifications');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error setting mute:', error);
+                    alert('Failed to mute notifications');
+                });
+            });
+        });
+
+        // Unmute button
+        unmuteBtn.addEventListener('click', function() {
+            if (!currentMinerId) return;
+            
+            fetch('/api/notifications/unmute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ miner_id: currentMinerId })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result && result.success) {
+                    updateMuteStatus(currentMinerId);
+                    muteModal.hide();
+                    
+                    const toast = document.createElement('div');
+                    toast.className = 'alert alert-info alert-dismissible fade show position-fixed top-0 end-0 m-3';
+                    toast.style.zIndex = '9999';
+                    toast.innerHTML = `
+                        <strong>Notifications unmuted</strong>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    `;
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 3000);
+                } else {
+                    alert('Failed to unmute notifications');
+                }
+            })
+            .catch(error => {
+                console.error('Error unmuting:', error);
+            });
+        });
+
+        // Update all mute statuses on page load and periodically
+        updateAllMuteStatuses();
+        setInterval(updateAllMuteStatuses, 60000); // Check every minute
     });
 </script>
 {% endblock %} 

@@ -95,6 +95,10 @@ def dashboard(request: Request, success: Optional[str] = None, error: Optional[s
             # Ensure voltage has a default value if it's None
             if latest.voltage is None:
                 latest.voltage = 0.0
+            
+            # Ensure error_percentage has a default value if it's None
+            if not hasattr(latest, 'error_percentage') or latest.error_percentage is None:
+                latest.error_percentage = 0.0
                 
             latest_readings.append({
                 "miner": miner,
@@ -126,8 +130,13 @@ def history(
     miner_id: Optional[str] = Query(None),
     session: Session = Depends(get_session)
 ):
+    from .settings_manager import load_settings
+    
     # Get list of miners for dropdown
     miners = session.exec(select(Miner)).all()
+    
+    # Load settings for chart display options
+    settings = load_settings()
     
     # Parse miner_id to integer if it's not None or empty
     selected_miner = None
@@ -138,13 +147,14 @@ def history(
             logger.warning(f"Invalid miner_id parameter: {miner_id}")
             selected_miner = None
     
-    # Get historical data - get 24 hours of data
+    # Get historical data based on retention setting
     query = select(Reading)
     if selected_miner:
         query = query.where(Reading.miner_id == selected_miner)
     
-    # Limit to last 24 hours of data to keep chart readable
-    cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+    # Use retention days setting to determine data cutoff
+    retention_hours = settings['RETENTION_DAYS'] * 24
+    cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=retention_hours)
     query = query.where(Reading.timestamp > cutoff)
     
     # Order by timestamp
@@ -163,19 +173,41 @@ def history(
             voltage = reading.voltage
             if voltage is None:
                 voltage = 0.0
+            
+            # Ensure error_percentage has a default value if it's None
+            error_percentage = reading.error_percentage if hasattr(reading, 'error_percentage') else 0.0
+            if error_percentage is None:
+                error_percentage = 0.0
                 
             readings_by_miner[miner.name].append({
                 "timestamp": reading.timestamp.strftime("%H:%M:%S"),
-                "full_timestamp": reading.timestamp.isoformat(),
+                "full_timestamp": reading.timestamp.isoformat() + "Z",
                 "hash_rate": reading.hash_rate,
                 "temperature": reading.temperature,
                 "best_diff": format_large_number(reading.best_diff),
-                "voltage": voltage
+                "voltage": voltage,
+                "error_percentage": error_percentage
             })
     
     # Pre-slice the data for different time windows
+    # Create dynamic windows based on retention period
+    retention_hours = settings['RETENTION_DAYS'] * 24
+    logger.info(f"Retention period: {settings['RETENTION_DAYS']} days = {retention_hours} hours")
+    windows = [1, 6]  # Always show 1h and 6h
+    
+    if retention_hours >= 24:
+        windows.append(24)  # Add 24h if retention allows
+    if retention_hours > 24:
+        # Add "all time" window (full retention period)
+        if retention_hours not in windows:
+            windows.append(retention_hours)
+            logger.info(f"Added window: {retention_hours}h (all time)")
+    elif retention_hours < 24:
+        # For short retention periods, add the full retention as an option
+        if retention_hours not in windows and retention_hours > 6:
+            windows.append(int(retention_hours))
+    
     windowed_data = {}
-    windows = [1, 6, 24]
     
     # Find the latest timestamp across all miners
     latest_timestamp = None
@@ -217,7 +249,9 @@ def history(
             "miners": miners,
             "selected_miner": selected_miner,
             "readings_by_miner": readings_by_miner,
-            "windowed_data": windowed_data
+            "windowed_data": windowed_data,
+            "settings": settings,
+            "windows": windows
         })
     )
 
@@ -396,4 +430,63 @@ def poll_now():
         return {"success": True, "polled_count": success_count}
     except Exception as e:
         logger.exception("Error triggering poll")
+        return {"success": False, "error": str(e)}
+
+class MuteRequest(BaseModel):
+    miner_id: int
+    minutes: int
+
+class UnmuteRequest(BaseModel):
+    miner_id: int
+
+@app.post("/api/notifications/mute")
+def mute_notifications(request: MuteRequest):
+    """Mute notifications for a specific miner for specified number of minutes"""
+    try:
+        from .notifier import set_miner_mute
+        if set_miner_mute(request.miner_id, request.minutes):
+            return {"success": True, "muted_for_minutes": request.minutes}
+        else:
+            return {"success": False, "error": "Failed to set mute"}
+    except Exception as e:
+        logger.exception("Error muting notifications")
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/notifications/unmute")
+def unmute_notifications(request: UnmuteRequest):
+    """Unmute notifications for a specific miner"""
+    try:
+        from .notifier import clear_miner_mute
+        if clear_miner_mute(request.miner_id):
+            return {"success": True}
+        else:
+            return {"success": False, "error": "Failed to unmute"}
+    except Exception as e:
+        logger.exception("Error unmuting notifications")
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/notifications/status/{miner_id}")
+def get_notification_status(miner_id: int):
+    """Get current notification mute status for a specific miner"""
+    try:
+        from .notifier import is_miner_muted, MUTE_STATUS_FILE
+        import json
+        
+        is_muted = is_miner_muted(miner_id)
+        mute_until = None
+        
+        if MUTE_STATUS_FILE.exists():
+            with open(MUTE_STATUS_FILE, 'r') as f:
+                mute_data = json.load(f)
+                miners = mute_data.get('miners', {})
+                if str(miner_id) in miners:
+                    mute_until = miners[str(miner_id)].get('mute_until')
+        
+        return {
+            "success": True,
+            "muted": is_muted,
+            "mute_until": mute_until
+        }
+    except Exception as e:
+        logger.exception("Error getting notification status")
         return {"success": False, "error": str(e)} 
