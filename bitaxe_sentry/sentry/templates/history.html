@@ -168,7 +168,7 @@
                     </div>
                     <div class="chart-options-group">
                         <div class="btn-group me-2" role="group" aria-label="Units">
-                            <button type="button" id="unitMh" class="btn btn-light btn-sm">MH/s</button>
+                            <button type="button" id="unitMh" class="btn btn-light btn-sm">GH/s</button>
                             <button type="button" id="unitTh" class="btn btn-light btn-sm">TH/s</button>
                         </div>
                         <div class="dropdown d-inline-block">
@@ -629,7 +629,7 @@
                             let formattedValue;
                             if (context.chart.canvas.id === 'hashRateChart') {
                                                                  const unit = getCurrentUnit();
-                                formattedValue = context.parsed.y.toFixed(2) + ' ' + (unit === 'TH' ? 'TH/s' : 'MH/s');
+                                formattedValue = context.parsed.y.toFixed(2) + ' ' + (unit === 'TH' ? 'TH/s' : 'GH/s');
                             } else if (context.chart.canvas.id === 'tempChart') {
                                 formattedValue = context.parsed.y.toFixed(1) + ' °C';
                             } else if (context.chart.canvas.id === 'voltageChart') {
@@ -858,7 +858,7 @@
     // Units handling for hash rate
     const unitStorageKey = 'hashrate_unit';
     function getCurrentUnit() {
-        try { return localStorage.getItem(unitStorageKey) || 'MH'; } catch(e) { return 'MH'; }
+        try { return localStorage.getItem(unitStorageKey) || 'GH'; } catch(e) { return 'GH'; }
     }
     function setCurrentUnit(unit) {
         try { localStorage.setItem(unitStorageKey, unit); } catch(e) {}
@@ -886,13 +886,13 @@
     function convertHashrate(value) {
         const unit = getCurrentUnit();
         if (unit === 'TH') {
-            return value / 1000.0; // MH/s -> TH/s
+            return value / 1000.0; // GH/s -> TH/s
         }
-        return value; // default MH/s
+        return value; // default GH/s
     }
 
     function getHashrateUnitLabel() {
-        return getCurrentUnit() === 'TH' ? 'TH/s' : 'MH/s';
+        return getCurrentUnit() === 'TH' ? 'TH/s' : 'GH/s';
     }
 
     function updateHashrateAxisUnit() {
@@ -921,7 +921,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         const mhBtn = document.getElementById('unitMh');
         const thBtn = document.getElementById('unitTh');
-        if (mhBtn) mhBtn.addEventListener('click', () => { setCurrentUnit('MH'); updateHashrateAxisUnit(); });
+        if (mhBtn) mhBtn.addEventListener('click', () => { setCurrentUnit('GH'); updateHashrateAxisUnit(); });
         if (thBtn) thBtn.addEventListener('click', () => { setCurrentUnit('TH'); updateHashrateAxisUnit(); });
         updateUnitButtons();
     });

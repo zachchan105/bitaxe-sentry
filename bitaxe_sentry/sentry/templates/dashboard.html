@@ -65,7 +65,7 @@
                 <div class="row">
                     <div class="col-6">
                         <div class="mb-3">
-                            <h6 class="text-muted mb-1 hashrate-label toggle-unit" title="Toggle units (MH/s ↔ TH/s)">Hash Rate</h6>
+                            <h6 class="text-muted mb-1 hashrate-label toggle-unit" title="Toggle units (GH/s ↔ TH/s)">Hash Rate</h6>
                             <h4>
                                 <span class="hashrate-value toggle-unit" data-hashrate-mh="{{ "%.6f"|format(item.reading.hash_rate) }}"></span>
                                 <span class="hashrate-unit toggle-unit"></span>
@@ -325,22 +325,22 @@
 
         const UNIT_KEY = 'hashrate_unit'; // shared with history
         function getUnit() {
-            try { return localStorage.getItem(UNIT_KEY) || 'MH'; } catch (e) { return 'MH'; }
+            try { return localStorage.getItem(UNIT_KEY) || 'GH'; } catch (e) { return 'GH'; }
         }
         function setUnit(u) {
             try { localStorage.setItem(UNIT_KEY, u); } catch (e) {}
             renderAllHashrates();
         }
-        function convertToDisplay(mh) {
+        function convertToDisplay(gh) {
             const unit = getUnit();
-            if (unit === 'TH') return { value: (mh / 1000.0), unit: 'TH/s' };
-            return { value: mh, unit: 'MH/s' };
+            if (unit === 'TH') return { value: (gh / 1000.0), unit: 'TH/s' };
+            return { value: gh, unit: 'GH/s' };
         }
         function renderAllHashrates() {
             const unit = getUnit();
             document.querySelectorAll('.hashrate-value').forEach(span => {
-                const mh = parseFloat(span.getAttribute('data-hashrate-mh') || '0');
-                const { value, unit } = convertToDisplay(mh);
+                const gh = parseFloat(span.getAttribute('data-hashrate-mh') || '0');
+                const { value, unit } = convertToDisplay(gh);
                 span.textContent = value.toFixed(2);
                 const unitSpan = span.parentElement.querySelector('.hashrate-unit');
                 if (unitSpan) unitSpan.textContent = ' ' + unit;
@@ -348,7 +348,7 @@
         }
         function toggleUnit() {
             const current = getUnit();
-            setUnit(current === 'MH' ? 'TH' : 'MH');
+            setUnit(current === 'GH' ? 'TH' : 'GH');
         }
 
         // Initial render
