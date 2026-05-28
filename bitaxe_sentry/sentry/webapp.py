@@ -114,6 +114,7 @@ def dashboard(request: Request, success: Optional[str] = None, error: Optional[s
     last_updated = most_recent_timestamp.strftime("%Y-%m-%d %H:%M:%S") if most_recent_timestamp else "Never"
     
     return templates.TemplateResponse(
+        request,
         "dashboard.html", 
         get_template_context(request, {
             "readings": latest_readings,
@@ -178,6 +179,11 @@ def history(
             error_percentage = reading.error_percentage if hasattr(reading, 'error_percentage') else 0.0
             if error_percentage is None:
                 error_percentage = 0.0
+            
+            # Ensure response_time has a default value if it's None
+            response_time = reading.response_time if hasattr(reading, 'response_time') else None
+            if response_time is None:
+                response_time = None
                 
             readings_by_miner[miner.name].append({
                 "timestamp": reading.timestamp.strftime("%H:%M:%S"),
@@ -186,7 +192,8 @@ def history(
                 "temperature": reading.temperature,
                 "best_diff": format_large_number(reading.best_diff),
                 "voltage": voltage,
-                "error_percentage": error_percentage
+                "error_percentage": error_percentage,
+                "response_time": response_time
             })
     
     # Pre-slice the data for different time windows
@@ -244,6 +251,7 @@ def history(
                 logger.info(f"Window {hours}h for {miner_name}: No data points")
     
     return templates.TemplateResponse(
+        request,
         "history.html", 
         get_template_context(request, {
             "miners": miners,
@@ -320,7 +328,7 @@ def settings_page(request: Request, success: Optional[str] = None, error: Option
         "error_message": error
     }
     
-    return templates.TemplateResponse("settings.html", get_template_context(request, context))
+    return templates.TemplateResponse(request, "settings.html", get_template_context(request, context))
 
 def notify_sentry_service():
     """Send SIGHUP signal to the sentry service to reload configuration"""

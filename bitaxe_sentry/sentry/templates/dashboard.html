@@ -132,6 +132,26 @@
                             </h5>
                         </div>
                     </div>
+                    <div class="col-6">
+                        <div class="mb-3">
+                            <h6 class="text-muted mb-1">Pool Latency</h6>
+                            <h5 class="
+                                {% if item.reading.response_time and item.reading.response_time > 500 %}
+                                    temp-danger
+                                {% elif item.reading.response_time and item.reading.response_time > 200 %}
+                                    temp-warning
+                                {% else %}
+                                    temp-normal
+                                {% endif %}
+                            ">
+                                {% if item.reading.response_time is not none %}
+                                {{ "%.1f"|format(item.reading.response_time) }} ms
+                                {% else %}
+                                <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </h5>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="card-footer text-muted small">

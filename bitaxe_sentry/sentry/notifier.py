@@ -409,4 +409,50 @@ def send_miner_offline_alert(miner):
         return True
     except Exception as e:
         logger.error(f"Failed to send offline alert: {e}")
-        return False 
+        return False
+
+def send_latency_alert(miner, reading, consecutive_count=1):
+    """
+    Send high pool latency alert via Discord webhook.
+    
+    Args:
+        miner: The miner instance
+        reading: Reading instance with response_time data
+        consecutive_count: Number of consecutive high latency readings that triggered the alert
+        
+    Returns:
+        bool: True if notification was sent successfully, False otherwise
+    """
+    # Check if notifications are muted for this miner
+    if is_miner_muted(miner.id):
+        logger.info(f"Miner {miner.name} (ID: {miner.id}) notifications are muted, skipping latency alert")
+        return False
+    
+    # Reload config to ensure we have the latest webhook URL
+    reload_config()
+    from .config import DISCORD_WEBHOOK, LATENCY_MAX_THRESHOLD
+    
+    if not DISCORD_WEBHOOK:
+        logger.warning(f"Discord webhook URL not configured, skipping latency alert for {miner.name}")
+        return False
+        
+    logger.info(f"Preparing to send latency alert for {miner.name} via webhook: {DISCORD_WEBHOOK[:20]}...")
+    
+    content = (
+      f"⚠️ **{miner.name}** high pool latency detected ({consecutive_count} consecutive)\n"
+      f"Pool Latency: {reading.response_time:.2f}ms (threshold: {LATENCY_MAX_THRESHOLD}ms)\n"
+      f"This may indicate network issues or pool connectivity problems."
+    )
+    
+    try:
+        response = requests.post(
+            DISCORD_WEBHOOK, 
+            json={"content": content},
+            timeout=10
+        )
+        response.raise_for_status()
+        logger.info(f"Latency alert sent for {miner.name}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send latency alert: {e}")
+        return False

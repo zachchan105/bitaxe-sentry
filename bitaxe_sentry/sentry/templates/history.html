@@ -312,6 +312,47 @@
     </div>
 </div>
 
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>Pool Latency (ms)</h5>
+                <div class="chart-controls" id="latencyControls">
+                    <!-- Buttons will be generated dynamically by JavaScript -->
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="latencyChart"></canvas>
+                </div>
+                <div class="chart-options">
+                    <div class="chart-options-group">
+                        <button class="btn btn-sm btn-light chart-toggle-btn active" id="latencyChartCurved" onclick="toggleCurvedLines('latencyChart', this)" title="Toggle Curved Lines">
+                            <i class="fas fa-bezier-curve"></i><span class="d-none d-md-inline"> Curved</span>
+                        </button>
+                        <button class="btn btn-sm btn-light chart-toggle-btn active" id="latencyChartPoints" onclick="toggleDataPoints('latencyChart', this)" title="Toggle Data Points">
+                            <i class="fas fa-circle"></i><span class="d-none d-md-inline"> Points</span>
+                        </button>
+                    </div>
+                    <div class="chart-options-group">
+                        <div class="dropdown d-inline-block">
+                            <button class="btn btn-sm btn-light dropdown-toggle" type="button" id="latencyLegendDropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Legend Position">
+                                <i class="fas fa-list"></i><span class="d-none d-md-inline"> Legend</span>
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="latencyLegendDropdown">
+                                <li><a class="dropdown-item" href="#" onclick="changeLegendPosition('latencyChart', 'top'); return false;">Top</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="changeLegendPosition('latencyChart', 'bottom'); return false;">Bottom</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="changeLegendPosition('latencyChart', 'left'); return false;">Left</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="changeLegendPosition('latencyChart', 'right'); return false;">Right</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Store the readings data for JavaScript -->
 <script id="readings-data" type="application/json">
 {{ readings_by_miner|tojson }}
@@ -337,6 +378,7 @@
     let tempChart = null;
     let voltageChart = null;
     let errorChart = null;
+    let latencyChart = null;
     
     // Global data storage
     let rawData = null;
@@ -349,6 +391,7 @@
         if (chartId === 'tempChart') return tempChart;
         if (chartId === 'voltageChart') return voltageChart;
         if (chartId === 'errorChart') return errorChart;
+        if (chartId === 'latencyChart') return latencyChart;
         return null;
     }
     
@@ -369,7 +412,7 @@
     
     // Generate time window buttons for all charts
     function generateTimeWindowButtons() {
-        const chartIds = ['hashRateControls', 'tempControls', 'voltageControls', 'errorControls'];
+        const chartIds = ['hashRateControls', 'tempControls', 'voltageControls', 'errorControls', 'latencyControls'];
         
         chartIds.forEach(chartId => {
             const container = document.getElementById(chartId);
@@ -428,7 +471,7 @@
         });
         
         // Update each chart
-        ['hashRateChart', 'tempChart', 'voltageChart', 'errorChart'].forEach(chartId => {
+        ['hashRateChart', 'tempChart', 'voltageChart', 'errorChart', 'latencyChart'].forEach(chartId => {
             updateChartFromSlice(chartId, dataSlice);
         });
     }
@@ -501,6 +544,7 @@
                     y: chartId === 'hashRateChart' ? convertHashrate(r.hash_rate)
                         : chartId === 'tempChart' ? r.temperature
                         : chartId === 'voltageChart' ? r.voltage
+                        : chartId === 'latencyChart' ? (r.response_time || 0)
                         : /* errorChart */ (r.error_percentage || 0),
                     rawTimestamp: r.timestamp // Store the raw timestamp for display
                 };
@@ -772,6 +816,30 @@
                             title: {
                                 display: true,
                                 text: '%'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Initialize Latency chart
+        const latencyCtx = document.getElementById('latencyChart');
+        if (latencyCtx) {
+            latencyChart = new Chart(latencyCtx, {
+                type: 'line',
+                data: {
+                    datasets: []
+                },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        ...commonOptions.scales,
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'ms'
                             }
                         }
                     }

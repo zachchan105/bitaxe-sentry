@@ -64,6 +64,18 @@
                                value="{{ settings.VOLT_MIN }}" min="3" max="12" step="0.1" required>
                         <div class="form-text">Minimum acceptable voltage before alerting</div>
                     </div>
+                    <div class="mb-3">
+                        <label for="latency_max" class="form-label">Maximum Latency Threshold (ms)</label>
+                        <input type="number" class="form-control" id="latency_max" name="LATENCY_MAX_THRESHOLD" 
+                               value="{{ settings.LATENCY_MAX_THRESHOLD }}" min="100" max="5000" step="50" required>
+                        <div class="form-text">Maximum acceptable pool response time before alerting (100-5000 ms)</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="latency_consecutive" class="form-label">Consecutive High Latency Count</label>
+                        <input type="number" class="form-control" id="latency_consecutive" name="LATENCY_CONSECUTIVE_COUNT" 
+                               value="{{ settings.LATENCY_CONSECUTIVE_COUNT }}" min="1" step="1" required>
+                        <div class="form-text">Number of consecutive high latency readings before alerting</div>
+                    </div>
                 </div>
             </div>
             
