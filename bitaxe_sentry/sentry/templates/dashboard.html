@@ -86,6 +86,17 @@
                             ">
                                 {{ "%.1f"|format(item.reading.temperature) }} °C
                             </h4>
+                            {% if item.reading.vr_temp is not none %}
+                            <small class="
+                                {% if item.reading.vr_temp > 85 %}
+                                    temp-danger
+                                {% elif item.reading.vr_temp > 75 %}
+                                    temp-warning
+                                {% else %}
+                                    text-muted
+                                {% endif %}
+                            ">VR: {{ "%.1f"|format(item.reading.vr_temp) }} °C</small>
+                            {% endif %}
                         </div>
                     </div>
                 </div>

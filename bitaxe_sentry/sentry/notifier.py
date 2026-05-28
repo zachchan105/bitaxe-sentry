@@ -252,6 +252,22 @@ def send_latency_alert(miner, reading, consecutive_count=1):
     return _notify(content, title=f"{miner.name}: High pool latency", priority="default")
 
 
+def send_vr_temp_alert(miner, reading):
+    if is_miner_muted(miner.id):
+        logger.info(f"Miner {miner.name} muted, skipping VR temp alert")
+        return False
+    reload_config()
+    from .config import TEMP_VR_MAX
+    content = (
+        f"🌡️ **{miner.name}** VR temperature critical: {reading.vr_temp:.1f}°C "
+        f"(threshold: {TEMP_VR_MAX}°C)\n"
+        f"Chip: {reading.temperature:.1f}°C | Voltage: {reading.voltage:.2f}V "
+        f"| Hash Rate: {reading.hash_rate:.2f} GH/s"
+    )
+    logger.info(f"Sending VR temp alert for {miner.name}: {reading.vr_temp:.1f}°C")
+    return _notify(content, title=f"{miner.name}: VR temp critical", priority="urgent")
+
+
 def send_pool_failover_alert(miner, reading, to_fallback: bool):
     if is_miner_muted(miner.id):
         logger.info(f"Miner {miner.name} muted, skipping pool failover alert")

@@ -15,6 +15,7 @@ logger.info(f"Configured polling interval: {POLL_INTERVAL} minutes")
 RETENTION_DAYS = settings["RETENTION_DAYS"]
 TEMP_MIN = settings["TEMP_MIN"]
 TEMP_MAX = settings["TEMP_MAX"]
+TEMP_VR_MAX = settings.get("TEMP_VR_MAX", 90.0)
 VOLT_MIN = settings["VOLT_MIN"]
 LATENCY_MAX_THRESHOLD = settings["LATENCY_MAX_THRESHOLD"]
 LATENCY_CONSECUTIVE_COUNT = settings["LATENCY_CONSECUTIVE_COUNT"]
@@ -59,7 +60,7 @@ last_modified_time = get_config_mtime()
 
 def reload_config():
     """Reload configuration from JSON config file if it has been modified"""
-    global POLL_INTERVAL, RETENTION_DAYS, TEMP_MIN, TEMP_MAX, VOLT_MIN, LATENCY_MAX_THRESHOLD, LATENCY_CONSECUTIVE_COUNT, ENDPOINTS, DISCORD_WEBHOOK, NTFY_TOPIC, NTFY_SERVER, last_modified_time
+    global POLL_INTERVAL, RETENTION_DAYS, TEMP_MIN, TEMP_MAX, TEMP_VR_MAX, VOLT_MIN, LATENCY_MAX_THRESHOLD, LATENCY_CONSECUTIVE_COUNT, ENDPOINTS, DISCORD_WEBHOOK, NTFY_TOPIC, NTFY_SERVER, last_modified_time
     
     # Check if the config file has been modified
     current_mtime = get_config_mtime()
@@ -77,6 +78,7 @@ def reload_config():
     RETENTION_DAYS = settings["RETENTION_DAYS"]
     TEMP_MIN = settings["TEMP_MIN"]
     TEMP_MAX = settings["TEMP_MAX"]
+    TEMP_VR_MAX = settings.get("TEMP_VR_MAX", 90.0)
     VOLT_MIN = settings["VOLT_MIN"]
     LATENCY_MAX_THRESHOLD = settings["LATENCY_MAX_THRESHOLD"]
     LATENCY_CONSECUTIVE_COUNT = settings["LATENCY_CONSECUTIVE_COUNT"]

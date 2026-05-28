@@ -40,6 +40,7 @@ class Reading(SQLModel, table=True):
     voltage: float = Field(default=0.0)
     error_percentage: float = Field(default=0.0)
     response_time: Optional[float] = Field(default=None, nullable=True)
+    vr_temp: Optional[float] = Field(default=None, nullable=True)
     fan_rpm: Optional[int] = Field(default=None, nullable=True)
     fan_pct: Optional[float] = Field(default=None, nullable=True)
     pool_url: Optional[str] = Field(default=None, nullable=True)

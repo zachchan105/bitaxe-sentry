@@ -4,11 +4,12 @@ import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from sqlmodel import Session, select
-from .config import ENDPOINTS, TEMP_MAX, TEMP_MIN, VOLT_MIN, LATENCY_MAX_THRESHOLD, LATENCY_CONSECUTIVE_COUNT, reload_config
+from .config import ENDPOINTS, TEMP_MAX, TEMP_MIN, TEMP_VR_MAX, VOLT_MIN, LATENCY_MAX_THRESHOLD, LATENCY_CONSECUTIVE_COUNT, reload_config
 from .db import engine, Miner, Reading
 from .notifier import (
     send_temperature_alert, send_voltage_alert, send_diff_alert,
     send_miner_offline_alert, send_latency_alert, send_pool_failover_alert,
+    send_vr_temp_alert,
 )
 
 logger = logging.getLogger(__name__)
@@ -97,7 +98,7 @@ def poll_once():
     logger.info("Starting polling cycle")
 
     reload_config()
-    from .config import ENDPOINTS, TEMP_MAX, TEMP_MIN, VOLT_MIN, LATENCY_MAX_THRESHOLD, LATENCY_CONSECUTIVE_COUNT
+    from .config import ENDPOINTS, TEMP_MAX, TEMP_MIN, TEMP_VR_MAX, VOLT_MIN, LATENCY_MAX_THRESHOLD, LATENCY_CONSECUTIVE_COUNT
 
     if not ENDPOINTS:
         logger.warning("No miner endpoints configured, skipping poll")
@@ -165,6 +166,16 @@ def poll_once():
             raw_session_diff = data.get("bestSessionDiff") or data.get("bestSessiondiff")
             best_session_diff = normalize_difficulty(raw_session_diff) if raw_session_diff else None
 
+            # VR temperature (voltage regulator)
+            vr_temp_raw = data.get("vrTemp")
+            vr_temp = None
+            if vr_temp_raw is not None:
+                try:
+                    v = float(vr_temp_raw)
+                    vr_temp = v if v > 0 else None  # firmware reports -1 for absent sensor
+                except (TypeError, ValueError):
+                    pass
+
             # Fan
             fan_rpm = data.get("fanrpm")
             if fan_rpm is not None:
@@ -187,6 +198,7 @@ def poll_once():
                 miner_id=miner.id,
                 hash_rate=data["hashRate"],
                 temperature=data["temp"],
+                vr_temp=vr_temp,
                 best_diff=normalized_best_diff,
                 voltage=converted_voltage,
                 error_percentage=data.get("errorPercentage", 0.0),
@@ -200,13 +212,24 @@ def poll_once():
             session.add(r)
             session.commit()
 
-            # ── Temperature alert ──────────────────────────────────────────
+            # ── Chip temperature alert ────────────────────────────────────
             if r.temperature > TEMP_MAX or r.temperature < TEMP_MIN:
                 logger.warning(
                     f"Temperature out of range for {miner.name}: {r.temperature}°C "
                     f"(range: {TEMP_MIN}-{TEMP_MAX}°C)"
                 )
                 send_temperature_alert(miner, r)
+
+            # ── VR temperature alert ───────────────────────────────────────
+            if r.vr_temp is not None and r.vr_temp >= TEMP_VR_MAX:
+                logger.warning(
+                    f"VR temperature critical for {miner.name}: {r.vr_temp:.1f}°C "
+                    f"(threshold: {TEMP_VR_MAX}°C)"
+                )
+                try:
+                    send_vr_temp_alert(miner, r)
+                except Exception as e:
+                    logger.exception(f"Failed to send VR temp alert for {miner.name}: {e}")
 
             # ── Voltage alert ──────────────────────────────────────────────
             if r.voltage < VOLT_MIN:
