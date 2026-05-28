@@ -43,3 +43,8 @@ ENV/
 
 # Logs
 *.log 
+# Stray kernel fd files
+anon_inode:*
+pidfd:*
+pipe:*
+socket:*
