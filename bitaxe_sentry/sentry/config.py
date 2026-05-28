@@ -18,6 +18,8 @@ TEMP_MAX = settings["TEMP_MAX"]
 VOLT_MIN = settings["VOLT_MIN"]
 LATENCY_MAX_THRESHOLD = settings["LATENCY_MAX_THRESHOLD"]
 LATENCY_CONSECUTIVE_COUNT = settings["LATENCY_CONSECUTIVE_COUNT"]
+NTFY_TOPIC = settings.get("NTFY_TOPIC", "")
+NTFY_SERVER = settings.get("NTFY_SERVER", "https://ntfy.sh")
 
 # Process endpoints
 ENDPOINTS = []
@@ -57,7 +59,7 @@ last_modified_time = get_config_mtime()
 
 def reload_config():
     """Reload configuration from JSON config file if it has been modified"""
-    global POLL_INTERVAL, RETENTION_DAYS, TEMP_MIN, TEMP_MAX, VOLT_MIN, LATENCY_MAX_THRESHOLD, LATENCY_CONSECUTIVE_COUNT, ENDPOINTS, DISCORD_WEBHOOK, last_modified_time
+    global POLL_INTERVAL, RETENTION_DAYS, TEMP_MIN, TEMP_MAX, VOLT_MIN, LATENCY_MAX_THRESHOLD, LATENCY_CONSECUTIVE_COUNT, ENDPOINTS, DISCORD_WEBHOOK, NTFY_TOPIC, NTFY_SERVER, last_modified_time
     
     # Check if the config file has been modified
     current_mtime = get_config_mtime()
@@ -79,6 +81,8 @@ def reload_config():
     LATENCY_MAX_THRESHOLD = settings["LATENCY_MAX_THRESHOLD"]
     LATENCY_CONSECUTIVE_COUNT = settings["LATENCY_CONSECUTIVE_COUNT"]
     DISCORD_WEBHOOK = settings["DISCORD_WEBHOOK_URL"]
+    NTFY_TOPIC = settings.get("NTFY_TOPIC", "")
+    NTFY_SERVER = settings.get("NTFY_SERVER", "https://ntfy.sh")
     
     # Process endpoints
     ENDPOINTS.clear()
@@ -102,10 +106,14 @@ def reload_config():
     logger.info(f"- Consecutive latency count: {LATENCY_CONSECUTIVE_COUNT}")
     logger.info(f"- Endpoints: {ENDPOINTS}")
     
-    # Log Discord webhook status
     if DISCORD_WEBHOOK:
         logger.info(f"- Discord webhook updated: {DISCORD_WEBHOOK[:20]}...")
     else:
         logger.info("- Discord webhook not configured")
-    
-    return True 
+
+    if NTFY_TOPIC:
+        logger.info(f"- ntfy topic: {NTFY_TOPIC} (server: {NTFY_SERVER})")
+    else:
+        logger.info("- ntfy not configured")
+
+    return True

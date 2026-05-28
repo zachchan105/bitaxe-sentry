@@ -410,31 +410,57 @@
         }
     }
     
-    // Generate time window buttons for all charts
+    // Per-chart active window state (fixes #28: independent timeframes)
+    const chartWindowState = {};
+
+    // Map control container id → chart canvas id
+    const controlToChart = {
+        'hashRateControls': 'hashRateChart',
+        'tempControls': 'tempChart',
+        'voltageControls': 'voltageChart',
+        'errorControls': 'errorChart',
+        'latencyControls': 'latencyChart',
+    };
+
     function generateTimeWindowButtons() {
-        const chartIds = ['hashRateControls', 'tempControls', 'voltageControls', 'errorControls', 'latencyControls'];
-        
-        chartIds.forEach(chartId => {
-            const container = document.getElementById(chartId);
+        Object.entries(controlToChart).forEach(([controlId, chartCanvasId]) => {
+            const container = document.getElementById(controlId);
             if (!container || !timeWindows) return;
-            
-            container.innerHTML = ''; // Clear existing buttons
-            
-            timeWindows.forEach((hours, index) => {
+
+            container.innerHTML = '';
+
+            const defaultWindow = timeWindows.includes(24) ? 24 : timeWindows[timeWindows.length - 1];
+            if (!(chartCanvasId in chartWindowState)) {
+                chartWindowState[chartCanvasId] = defaultWindow;
+            }
+
+            timeWindows.forEach(hours => {
                 const button = document.createElement('button');
                 button.className = 'btn btn-sm btn-outline-secondary';
+                if (hours === chartWindowState[chartCanvasId]) button.classList.add('active');
                 button.setAttribute('data-hours', hours);
-                button.onclick = () => updateAllCharts(hours);
+                button.onclick = () => updateSingleChart(chartCanvasId, controlId, hours);
                 button.textContent = formatTimeWindow(hours);
-                
-                // Make 24h active by default if available, otherwise the longest window
-                if (hours === 24 || (index === timeWindows.length - 1 && !timeWindows.includes(24))) {
-                    button.classList.add('active');
-                }
-                
                 container.appendChild(button);
             });
         });
+    }
+
+    function updateSingleChart(chartCanvasId, controlId, hours) {
+        chartWindowState[chartCanvasId] = hours;
+        // Update active button state for this chart only
+        const container = document.getElementById(controlId);
+        if (container) {
+            container.querySelectorAll('button').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.getAttribute('data-hours'), 10) === hours);
+            });
+        }
+        const slice = windowedData[hours] || {};
+        updateChartFromSlice(chartCanvasId, slice);
+
+        if (chartCanvasId === 'hashRateChart') {
+            updateHashRateTitle(hours);
+        }
     }
     
     // Format time as HH:MM:SS in local timezone
@@ -442,38 +468,15 @@
         return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'});
     }
     
-    // Update all charts with the selected time window
-    function updateAllCharts(hoursWindow) {
-        // Update active buttons for all charts
-        document.querySelectorAll('.chart-controls button').forEach(btn => {
-            btn.classList.remove('active');
-            if (parseInt(btn.getAttribute('data-hours'), 10) === hoursWindow) {
-                btn.classList.add('active');
-            }
+    // Update all charts to their current per-chart window (used on initial load and data refresh)
+    function updateAllCharts() {
+        Object.entries(controlToChart).forEach(([controlId, chartCanvasId]) => {
+            const hours = chartWindowState[chartCanvasId] ||
+                (timeWindows && (timeWindows.includes(24) ? 24 : timeWindows[timeWindows.length - 1])) || 24;
+            const slice = windowedData[hours] || {};
+            updateChartFromSlice(chartCanvasId, slice);
         });
-        
-        // Get the data slice for this time window
-        const dataSlice = windowedData[hoursWindow];
-        
-        // Update chart titles to show the time range
-        document.querySelectorAll('.card-header h5').forEach(title => {
-            const originalTitle = title.getAttribute('data-original-title') || title.textContent;
-            if (!title.getAttribute('data-original-title')) {
-                title.setAttribute('data-original-title', originalTitle);
-            }
-            
-            // Add time window to title
-            if (hoursWindow === 1) {
-                title.textContent = `${originalTitle} (Last hour)`;
-            } else {
-                title.textContent = `${originalTitle} (Last ${hoursWindow} hours)`;
-            }
-        });
-        
-        // Update each chart
-        ['hashRateChart', 'tempChart', 'voltageChart', 'errorChart', 'latencyChart'].forEach(chartId => {
-            updateChartFromSlice(chartId, dataSlice);
-        });
+        updateHashRateTitle(chartWindowState['hashRateChart'] || 24);
     }
     
     // Toggle curved lines for a chart
@@ -565,14 +568,14 @@
             });
         });
         
-        // Update the chart
+        // Reset x-axis bounds so Chart.js auto-scales to the new time window (#29)
+        if (chart.options.scales && chart.options.scales.x) {
+            chart.options.scales.x.min = undefined;
+            chart.options.scales.x.max = undefined;
+        }
+
         chart.data.datasets = datasets;
-        chart.update({
-            duration: 300,
-            easing: 'easeOutQuad'
-        });
-        
-        console.log(`Updated ${chartId} with ${datasets.length} datasets`);
+        chart.update({duration: 300, easing: 'easeOutQuad'});
     }
     
     // Change legend position for a chart
@@ -705,14 +708,19 @@
                     type: 'time',
                     time: {
                         displayFormats: {
-                            hour: 'HH:mm',
+                            millisecond: 'HH:mm:ss',
+                            second: 'HH:mm:ss',
                             minute: 'HH:mm',
-                            second: 'HH:mm:ss'
+                            hour: 'HH:mm',
+                            day: 'MMM D',
+                            week: 'MMM D',
+                            month: 'MMM YYYY',
                         }
                     },
                     ticks: {
                         autoSkip: true,
-                        maxTicksLimit: 20
+                        maxTicksLimit: 12,
+                        maxRotation: 0,
                     }
                 }
             },
@@ -848,48 +856,25 @@
         }
     }
     
-    // Auto-refresh the charts every 60 seconds
     function setupAutoRefresh() {
         setInterval(() => {
-            // Get current time window from active buttons
-            const activeButton = document.querySelector('.chart-controls .active');
-            const hoursWindow = activeButton ? parseInt(activeButton.getAttribute('data-hours'), 10) : (timeWindows ? timeWindows[timeWindows.length - 1] : 24);
-            
-            console.log(`Auto-refreshing charts with ${hoursWindow}h window`);
-            
-            // Reload the data
             fetch(window.location.href)
-                .then(response => response.text())
+                .then(r => r.text())
                 .then(html => {
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(html, 'text/html');
-                    const dataElement = doc.getElementById('readings-data');
-                    const windowedDataElement = doc.getElementById('windowed-data');
-                    const settingsElement = doc.getElementById('chart-settings');
-                    const timeWindowsElement = doc.getElementById('time-windows');
-                    
-                    if (dataElement && windowedDataElement && timeWindowsElement) {
+                    const doc = new DOMParser().parseFromString(html, 'text/html');
+                    const wd = doc.getElementById('windowed-data');
+                    const tw = doc.getElementById('time-windows');
+                    if (wd && tw) {
                         try {
-                            rawData = JSON.parse(dataElement.textContent.trim());
-                            windowedData = JSON.parse(windowedDataElement.textContent.trim());
-                            timeWindows = JSON.parse(timeWindowsElement.textContent.trim());
-                            
-                            console.log(`Data refreshed at ${new Date().toLocaleTimeString()}`);
-                            
-                            // Regenerate time window buttons in case settings changed
+                            windowedData = JSON.parse(wd.textContent.trim());
+                            timeWindows = JSON.parse(tw.textContent.trim());
                             generateTimeWindowButtons();
-                            
-                            // Update all charts with current time window
-                            updateAllCharts(hoursWindow);
-                        } catch (e) {
-                            console.error("Error processing refreshed data:", e);
-                        }
-                    } else {
-                        console.error("Could not find data elements in refreshed page");
+                            updateAllCharts();
+                        } catch(e) { console.error("Error refreshing data:", e); }
                     }
                 })
-                .catch(error => console.error('Error refreshing data:', error));
-        }, 60000); // Refresh every 60 seconds
+                .catch(e => console.error('Auto-refresh failed:', e));
+        }, 60000);
     }
     
     // Apply theme to charts
@@ -931,10 +916,7 @@
     function setCurrentUnit(unit) {
         try { localStorage.setItem(unitStorageKey, unit); } catch(e) {}
         updateUnitButtons();
-        // Re-render datasets with new unit
-        const activeButton = document.querySelector('.chart-controls .active');
-        const hoursWindow = activeButton ? parseInt(activeButton.getAttribute('data-hours'), 10) : (timeWindows ? timeWindows[timeWindows.length - 1] : 24);
-        updateAllCharts(hoursWindow);
+        updateAllCharts();
     }
     function updateUnitButtons() {
         const unit = getCurrentUnit();
@@ -978,12 +960,7 @@
         titleEl.textContent = `Hash Rate (${unit}) (${windowText})`;
     }
 
-    // Override updateAllCharts to also update titles with unit
-    const _updateAllCharts = updateAllCharts;
-    updateAllCharts = function(hoursWindow) {
-        _updateAllCharts(hoursWindow);
-        updateHashRateTitle(hoursWindow);
-    }
+    // updateAllCharts already calls updateHashRateTitle; no override needed
 
     // Wire unit buttons
     document.addEventListener('DOMContentLoaded', function() {
@@ -1034,14 +1011,12 @@
                 } else {
                     // Initialize charts
                     initCharts();
-                    
-                    // Generate time window buttons
+
+                    // Generate time window buttons (sets chartWindowState defaults)
                     generateTimeWindowButtons();
-                    
-                    // Update all charts with 24h window initially if available, otherwise longest
-                    const defaultWindow = timeWindows.includes(24) ? 24 : timeWindows[timeWindows.length - 1];
-                    updateAllCharts(defaultWindow);
-                    updateHashRateTitle(defaultWindow);
+
+                    // Load each chart at its default window
+                    updateAllCharts();
 
                     // Apply initial theme to charts
                     const isDark = (document.documentElement.getAttribute('data-theme') === 'dark');

@@ -21,7 +21,9 @@ DEFAULT_SETTINGS = {
     "LATENCY_MAX_THRESHOLD": 500,
     "LATENCY_CONSECUTIVE_COUNT": 3,
     "BITAXE_ENDPOINTS": [],
-    "DISCORD_WEBHOOK_URL": ""
+    "DISCORD_WEBHOOK_URL": "",
+    "NTFY_TOPIC": "",
+    "NTFY_SERVER": "https://ntfy.sh",
 }
 
 def ensure_data_dir():
@@ -57,6 +59,8 @@ def load_settings():
             settings["TEMP_MAX"] = float(settings["TEMP_MAX"])
             settings["VOLT_MIN"] = float(settings["VOLT_MIN"])
             settings["LATENCY_MAX_THRESHOLD"] = float(settings.get("LATENCY_MAX_THRESHOLD", DEFAULT_SETTINGS["LATENCY_MAX_THRESHOLD"]))
+            settings["NTFY_TOPIC"] = str(settings.get("NTFY_TOPIC", ""))
+            settings["NTFY_SERVER"] = str(settings.get("NTFY_SERVER", DEFAULT_SETTINGS["NTFY_SERVER"]))
             
             latency_consecutive = settings.get("LATENCY_CONSECUTIVE_COUNT", DEFAULT_SETTINGS["LATENCY_CONSECUTIVE_COUNT"])
             try:
@@ -104,6 +108,8 @@ def save_settings(settings_dict):
         settings_dict["TEMP_MAX"] = float(settings_dict.get("TEMP_MAX", DEFAULT_SETTINGS["TEMP_MAX"]))
         settings_dict["VOLT_MIN"] = float(settings_dict.get("VOLT_MIN", DEFAULT_SETTINGS["VOLT_MIN"]))
         settings_dict["LATENCY_MAX_THRESHOLD"] = float(settings_dict.get("LATENCY_MAX_THRESHOLD", DEFAULT_SETTINGS["LATENCY_MAX_THRESHOLD"]))
+        settings_dict["NTFY_TOPIC"] = str(settings_dict.get("NTFY_TOPIC", ""))
+        settings_dict["NTFY_SERVER"] = str(settings_dict.get("NTFY_SERVER", DEFAULT_SETTINGS["NTFY_SERVER"]))
         
         latency_consecutive = settings_dict.get("LATENCY_CONSECUTIVE_COUNT", DEFAULT_SETTINGS["LATENCY_CONSECUTIVE_COUNT"])
         try:

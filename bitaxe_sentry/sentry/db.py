@@ -1,4 +1,5 @@
 from sqlmodel import SQLModel, Field, create_engine, Session, select
+from typing import Optional
 import datetime
 import pathlib
 import os
@@ -36,9 +37,14 @@ class Reading(SQLModel, table=True):
     hash_rate: float
     temperature: float
     best_diff: str
-    voltage: float = Field(default=0.0)  # Voltage in millivolts
-    error_percentage: float = Field(default=0.0)  # Error percentage
-    response_time: float = Field(default=None, nullable=True)  # Pool latency in milliseconds
+    voltage: float = Field(default=0.0)
+    error_percentage: float = Field(default=0.0)
+    response_time: Optional[float] = Field(default=None, nullable=True)
+    fan_rpm: Optional[int] = Field(default=None, nullable=True)
+    fan_pct: Optional[float] = Field(default=None, nullable=True)
+    pool_url: Optional[str] = Field(default=None, nullable=True)
+    using_fallback: Optional[bool] = Field(default=None, nullable=True)
+    best_session_diff: Optional[str] = Field(default=None, nullable=True)
 
 
 # Create SQLite engine

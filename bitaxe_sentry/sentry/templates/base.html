@@ -160,6 +160,18 @@
         }
     </style>
     {% block head_extra %}{% endblock %}
+    <script>
+        /* Apply saved theme immediately to prevent flash on page load (#33) */
+        (function() {
+            var theme = 'light';
+            try {
+                var saved = localStorage.getItem('theme');
+                if (saved) { theme = saved; }
+                else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) { theme = 'dark'; }
+            } catch(e) {}
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
 </head>
 <body class="d-flex flex-column min-vh-100">
     <nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
@@ -274,31 +286,24 @@
                 if (mobileMenuLabel) mobileMenuLabel.textContent = isDark ? 'Light' : 'Dark';
                 window.dispatchEvent(new CustomEvent('themechange', { detail: { isDark } }));
             }
-            function initTheme() {
-                let theme = 'light';
-                try {
-                    const saved = localStorage.getItem(storageKey);
-                    if (saved) theme = saved;
-                    else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) theme = 'dark';
-                } catch (e) {}
-                setTheme(theme);
+            /* Wire toggle buttons after DOM is ready; theme is already applied from <head> */
+            document.addEventListener('DOMContentLoaded', function() {
+                const currentTheme = root.getAttribute('data-theme') || 'light';
+                setTheme(currentTheme); // sync icons/labels
                 const btn = document.getElementById('themeToggle');
                 if (btn) {
                     btn.addEventListener('click', () => {
-                        const current = root.getAttribute('data-theme') || 'light';
-                        setTheme(current === 'dark' ? 'light' : 'dark');
+                        setTheme((root.getAttribute('data-theme') || 'light') === 'dark' ? 'light' : 'dark');
                     });
                 }
                 const linkMobileMenu = document.getElementById('themeToggleMobileMenuLink');
                 if (linkMobileMenu) {
                     linkMobileMenu.addEventListener('click', (e) => {
                         e.preventDefault();
-                        const current = root.getAttribute('data-theme') || 'light';
-                        setTheme(current === 'dark' ? 'light' : 'dark');
+                        setTheme((root.getAttribute('data-theme') || 'light') === 'dark' ? 'light' : 'dark');
                     });
                 }
-            }
-            document.addEventListener('DOMContentLoaded', initTheme);
+            });
         })();
     </script>
     <script>

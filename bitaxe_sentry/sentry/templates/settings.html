@@ -116,17 +116,39 @@
             
             <div class="mb-4">
                 <h5 class="mb-3">Notifications</h5>
+
+                <h6 class="text-muted mb-2">Discord</h6>
                 <div class="mb-3">
                     <label for="discord_webhook" class="form-label">Discord Webhook URL</label>
-                    <input type="text" class="form-control" id="discord_webhook" name="DISCORD_WEBHOOK_URL" 
+                    <input type="text" class="form-control" id="discord_webhook" name="DISCORD_WEBHOOK_URL"
                            value="{{ settings.DISCORD_WEBHOOK_URL }}">
-                    <div class="form-text">Enter your Discord webhook URL to receive notifications (leave empty to disable)</div>
+                    <div class="form-text">Leave empty to disable Discord notifications.</div>
                 </div>
-                <div class="mt-3">
+                <div class="mb-4">
                     <button type="button" class="btn btn-sm btn-outline-secondary" id="test-webhook-btn">
-                        <i class="bi bi-send"></i> Test Webhook
+                        <i class="bi bi-send"></i> Test Discord
                     </button>
                     <span class="ms-2" id="webhook-test-result"></span>
+                </div>
+
+                <h6 class="text-muted mb-2">ntfy <small class="text-muted fw-normal">(push notifications via <a href="https://ntfy.sh" target="_blank" rel="noopener noreferrer">ntfy.sh</a> or self-hosted)</small></h6>
+                <div class="mb-3">
+                    <label for="ntfy_topic" class="form-label">ntfy Topic</label>
+                    <input type="text" class="form-control" id="ntfy_topic" name="NTFY_TOPIC"
+                           value="{{ settings.NTFY_TOPIC }}">
+                    <div class="form-text">Your ntfy topic name (e.g. <code>my-bitaxe-alerts</code>). Leave empty to disable.</div>
+                </div>
+                <div class="mb-3">
+                    <label for="ntfy_server" class="form-label">ntfy Server</label>
+                    <input type="text" class="form-control" id="ntfy_server" name="NTFY_SERVER"
+                           value="{{ settings.NTFY_SERVER }}">
+                    <div class="form-text">Use <code>https://ntfy.sh</code> for the public server, or your self-hosted URL.</div>
+                </div>
+                <div class="mb-4">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="test-ntfy-btn">
+                        <i class="bi bi-bell"></i> Test ntfy
+                    </button>
+                    <span class="ms-2" id="ntfy-test-result"></span>
                 </div>
             </div>
             
@@ -181,34 +203,68 @@
             updateEndpointsField();
         });
         
-        // Test webhook button
+        // Test Discord webhook button
         document.getElementById('test-webhook-btn').addEventListener('click', function() {
             const webhook = document.getElementById('discord_webhook').value;
             const resultSpan = document.getElementById('webhook-test-result');
-            
+
             if (!webhook) {
                 resultSpan.textContent = 'Please enter a webhook URL first';
                 resultSpan.className = 'text-danger';
                 return;
             }
-            
+
             resultSpan.textContent = 'Testing...';
             resultSpan.className = 'text-muted';
-            
+
             fetch('/api/test-webhook', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ webhook_url: webhook })
             })
-            .then(response => response.json())
+            .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    resultSpan.textContent = 'Webhook test successful!';
+                    resultSpan.textContent = 'Discord test successful!';
                     resultSpan.className = 'text-success';
                 } else {
                     resultSpan.textContent = 'Test failed: ' + data.error;
+                    resultSpan.className = 'text-danger';
+                }
+            })
+            .catch(error => {
+                resultSpan.textContent = 'Error: ' + error;
+                resultSpan.className = 'text-danger';
+            });
+        });
+
+        // Test ntfy button
+        document.getElementById('test-ntfy-btn').addEventListener('click', function() {
+            const topic = document.getElementById('ntfy_topic').value.trim();
+            const server = document.getElementById('ntfy_server').value.trim();
+            const resultSpan = document.getElementById('ntfy-test-result');
+
+            if (!topic) {
+                resultSpan.textContent = 'Please enter an ntfy topic first';
+                resultSpan.className = 'text-danger';
+                return;
+            }
+
+            resultSpan.textContent = 'Testing...';
+            resultSpan.className = 'text-muted';
+
+            fetch('/api/test-ntfy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ntfy_server: server || 'https://ntfy.sh', ntfy_topic: topic })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    resultSpan.textContent = 'ntfy test successful!';
+                    resultSpan.className = 'text-success';
+                } else {
+                    resultSpan.textContent = 'Test failed: ' + (data.error || 'unknown error');
                     resultSpan.className = 'text-danger';
                 }
             })
