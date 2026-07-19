@@ -89,16 +89,17 @@ def main():
     signal.signal(signal.SIGHUP, handle_sighup)
     logger.info("Registered SIGHUP handler for configuration reload")
     
-    # Create scheduler
+    # Create scheduler with misfire handling
     global scheduler, current_poll_interval
     scheduler = BackgroundScheduler()
     
-    # Add jobs
+    # Add jobs with misfire_grace_time to handle delayed jobs gracefully
     scheduler.add_job(
         poll_once, 
         'interval', 
         minutes=POLL_INTERVAL, 
-        id='poller'
+        id='poller',
+        misfire_grace_time=300  # Allow up to 5 minutes grace time for missed jobs
     )
     scheduler.add_job(clean_old, 'cron', hour=0, id='cleaner')
     

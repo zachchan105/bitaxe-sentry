@@ -14,7 +14,7 @@ import json
 from pydantic import BaseModel
 from .db import get_session, Miner, Reading
 from .config import ENDPOINTS, reload_config
-from .notifier import send_startup_notification, send_test_notification
+from .notifier import send_startup_notification, send_test_notification, send_test_ntfy
 from .version import __version__
 from .settings_manager import load_settings, save_settings
 from .poller import poll_once
@@ -114,7 +114,8 @@ def dashboard(request: Request, success: Optional[str] = None, error: Optional[s
     last_updated = most_recent_timestamp.strftime("%Y-%m-%d %H:%M:%S") if most_recent_timestamp else "Never"
     
     return templates.TemplateResponse(
-        "dashboard.html", 
+        request,
+        "dashboard.html",
         get_template_context(request, {
             "readings": latest_readings,
             "current_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -178,7 +179,11 @@ def history(
             error_percentage = reading.error_percentage if hasattr(reading, 'error_percentage') else 0.0
             if error_percentage is None:
                 error_percentage = 0.0
-                
+            
+            response_time = reading.response_time if hasattr(reading, 'response_time') else None
+            fan_rpm = reading.fan_rpm if hasattr(reading, 'fan_rpm') else None
+            fan_pct = reading.fan_pct if hasattr(reading, 'fan_pct') else None
+
             readings_by_miner[miner.name].append({
                 "timestamp": reading.timestamp.strftime("%H:%M:%S"),
                 "full_timestamp": reading.timestamp.isoformat() + "Z",
@@ -186,7 +191,10 @@ def history(
                 "temperature": reading.temperature,
                 "best_diff": format_large_number(reading.best_diff),
                 "voltage": voltage,
-                "error_percentage": error_percentage
+                "error_percentage": error_percentage,
+                "response_time": response_time,
+                "fan_rpm": fan_rpm,
+                "fan_pct": fan_pct,
             })
     
     # Pre-slice the data for different time windows
@@ -244,7 +252,8 @@ def history(
                 logger.info(f"Window {hours}h for {miner_name}: No data points")
     
     return templates.TemplateResponse(
-        "history.html", 
+        request,
+        "history.html",
         get_template_context(request, {
             "miners": miners,
             "selected_miner": selected_miner,
@@ -281,6 +290,32 @@ def delete_miner(
 
 class RenameRequest(BaseModel):
     name: str
+
+
+class EndpointRequest(BaseModel):
+    endpoint: str
+
+
+@app.post("/api/miners/{miner_id}/endpoint")
+def update_miner_endpoint(miner_id: int, req: EndpointRequest, session: Session = Depends(get_session)):
+    """Update a miner's endpoint URL, preserving all historical readings."""
+    miner = session.get(Miner, miner_id)
+    if not miner:
+        raise HTTPException(status_code=404, detail="Miner not found")
+
+    new_endpoint = (req.endpoint or "").strip()
+    if not new_endpoint:
+        raise HTTPException(status_code=400, detail="Endpoint cannot be empty")
+    if not new_endpoint.startswith(("http://", "https://")):
+        new_endpoint = f"http://{new_endpoint}"
+
+    old_endpoint = miner.endpoint
+    miner.endpoint = new_endpoint
+    session.add(miner)
+    session.commit()
+
+    logger.info(f"Updated miner ID {miner_id} endpoint from '{old_endpoint}' to '{new_endpoint}'")
+    return {"success": True, "id": miner_id, "endpoint": new_endpoint}
 
 
 @app.post("/api/miners/{miner_id}/rename")
@@ -320,7 +355,7 @@ def settings_page(request: Request, success: Optional[str] = None, error: Option
         "error_message": error
     }
     
-    return templates.TemplateResponse("settings.html", get_template_context(request, context))
+    return templates.TemplateResponse(request, "settings.html", get_template_context(request, context))
 
 def notify_sentry_service():
     """Send SIGHUP signal to the sentry service to reload configuration"""
@@ -419,6 +454,25 @@ def test_webhook(request: WebhookTestRequest):
             return {"success": False, "error": "Failed to send notification"}
     except Exception as e:
         logger.exception("Error testing webhook")
+        return {"success": False, "error": str(e)}
+
+
+class NtfyTestRequest(BaseModel):
+    ntfy_server: str
+    ntfy_topic: str
+
+
+@app.post("/api/test-ntfy")
+def test_ntfy_endpoint(request: NtfyTestRequest):
+    """Test the ntfy notification channel"""
+    try:
+        success = send_test_ntfy(request.ntfy_server, request.ntfy_topic)
+        if success:
+            return {"success": True}
+        else:
+            return {"success": False, "error": "Failed to send ntfy notification"}
+    except Exception as e:
+        logger.exception("Error testing ntfy")
         return {"success": False, "error": str(e)}
 
 @app.post("/api/poll-now")

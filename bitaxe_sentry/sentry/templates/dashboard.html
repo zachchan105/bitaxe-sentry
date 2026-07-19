@@ -86,6 +86,17 @@
                             ">
                                 {{ "%.1f"|format(item.reading.temperature) }} °C
                             </h4>
+                            {% if item.reading.vr_temp is not none %}
+                            <small class="
+                                {% if item.reading.vr_temp > 85 %}
+                                    temp-danger
+                                {% elif item.reading.vr_temp > 75 %}
+                                    temp-warning
+                                {% else %}
+                                    text-muted
+                                {% endif %}
+                            ">VR: {{ "%.1f"|format(item.reading.vr_temp) }} °C</small>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -132,11 +143,84 @@
                             </h5>
                         </div>
                     </div>
+                    <div class="col-6">
+                        <div class="mb-3">
+                            <h6 class="text-muted mb-1">Pool Latency</h6>
+                            <h5 class="
+                                {% if item.reading.response_time and item.reading.response_time > 500 %}
+                                    temp-danger
+                                {% elif item.reading.response_time and item.reading.response_time > 200 %}
+                                    temp-warning
+                                {% else %}
+                                    temp-normal
+                                {% endif %}
+                            ">
+                                {% if item.reading.response_time is not none %}
+                                {{ "%.1f"|format(item.reading.response_time) }} ms
+                                {% else %}
+                                <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </h5>
+                        </div>
+                    </div>
                 </div>
+
+                <div class="row">
+                    <div class="col-6">
+                        <div class="mb-3">
+                            <h6 class="text-muted mb-1">Fan</h6>
+                            <h5>
+                                {% if item.reading.fan_rpm is not none %}
+                                    <span class="text-info">{{ item.reading.fan_rpm }} RPM</span>
+                                    {% if item.reading.fan_pct is not none %}
+                                        <small class="text-muted">({{ "%.0f"|format(item.reading.fan_pct) }}%)</small>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </h5>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mb-3">
+                            <h6 class="text-muted mb-1">Session Best Diff</h6>
+                            <h5>
+                                {% if item.reading.best_session_diff %}
+                                    {{ format_large_number(item.reading.best_session_diff) }}
+                                {% else %}
+                                    <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </h5>
+                        </div>
+                    </div>
+                </div>
+
+                {% if item.reading.pool_url %}
+                <div class="row">
+                    <div class="col-12">
+                        <div class="mb-1">
+                            <h6 class="text-muted mb-1">
+                                Pool
+                                {% if item.reading.using_fallback %}
+                                    <span class="badge bg-warning text-dark ms-1">fallback</span>
+                                {% else %}
+                                    <span class="badge bg-success ms-1">primary</span>
+                                {% endif %}
+                            </h6>
+                            <small class="text-muted font-monospace text-truncate d-block" title="{{ item.reading.pool_url }}">{{ item.reading.pool_url }}</small>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
             </div>
             <div class="card-footer text-muted small">
                 <a href="/history?miner_id={{ item.miner.id }}" class="text-decoration-none">View history</a>
-                <span class="float-end">IP: <a href="{{ item.miner.endpoint }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none">{{ item.miner.endpoint }}</a></span>
+                <span class="float-end">
+                    <a href="{{ item.miner.endpoint }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none">{{ item.miner.endpoint }}</a>
+                    <a href="#" class="text-secondary ms-1 edit-endpoint-btn" data-miner-id="{{ item.miner.id }}" data-miner-endpoint="{{ item.miner.endpoint }}" title="Change IP/endpoint">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                </span>
             </div>
         </div>
     </div>
@@ -180,6 +264,29 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" id="confirmRenameBtn">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Endpoint Modal -->
+<div class="modal fade" id="editEndpointModal" tabindex="-1" aria-labelledby="editEndpointModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editEndpointModalLabel">Change Miner Endpoint</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">Changing the endpoint preserves all historical data for this miner.</p>
+                <div class="mb-3">
+                    <label for="newEndpointInput" class="form-label">Endpoint URL</label>
+                    <input type="text" class="form-control font-monospace" id="newEndpointInput" placeholder="http://192.168.1.x">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmEndpointBtn">Save</button>
             </div>
         </div>
     </div>
@@ -525,6 +632,36 @@
         // Update all mute statuses on page load and periodically
         updateAllMuteStatuses();
         setInterval(updateAllMuteStatuses, 60000); // Check every minute
+
+        // Edit endpoint
+        const editEndpointModal = new bootstrap.Modal(document.getElementById('editEndpointModal'));
+        const endpointInput = document.getElementById('newEndpointInput');
+        let minerIdForEndpoint = null;
+
+        document.querySelectorAll('.edit-endpoint-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                minerIdForEndpoint = this.getAttribute('data-miner-id');
+                endpointInput.value = this.getAttribute('data-miner-endpoint') || '';
+                editEndpointModal.show();
+            });
+        });
+
+        document.getElementById('confirmEndpointBtn').addEventListener('click', function() {
+            const newEndpoint = (endpointInput.value || '').trim();
+            if (!newEndpoint) { alert('Please enter an endpoint URL.'); return; }
+            fetch(`/api/miners/${minerIdForEndpoint}/endpoint`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ endpoint: newEndpoint })
+            }).then(r => r.json()).then(result => {
+                if (result && result.success) {
+                    window.location.reload();
+                } else {
+                    alert(result && result.detail ? result.detail : 'Failed to update endpoint.');
+                }
+            }).catch(() => alert('An error occurred.')).finally(() => editEndpointModal.hide());
+        });
     });
 </script>
 {% endblock %} 
